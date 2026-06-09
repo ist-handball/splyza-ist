@@ -1463,6 +1463,14 @@ body {
         margin: 0 !important;
         max-width: none !important;
         width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        gap: 8px !important;
+    }
+    
+    #video-history-select {
+        max-width: none !important;
+        width: 100% !important;
     }
     
     .header-tabs {

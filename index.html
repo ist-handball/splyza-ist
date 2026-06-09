@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.1.0">
+    <link rel="stylesheet" href="styles.css?v=2.2.0">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -25,12 +25,15 @@
                 <h1>ANALYST<span>Teams</span></h1>
             </div>
             
-            <div class="header-video-input">
-                <div class="input-group">
+            <div class="header-video-input" style="display: flex; gap: 10px; align-items: center; max-width: 700px;">
+                <div class="input-group" style="flex: 2;">
                     <i class="fa-brands fa-youtube input-icon"></i>
                     <input type="text" id="youtube-url" placeholder="YouTube動画URL または 動画IDを入力...">
                     <button id="load-video-btn" class="btn btn-primary">動画読込</button>
                 </div>
+                <select id="video-history-select" class="select-input" style="flex: 1; max-width: 220px;" title="過去に読み込んだ動画">
+                    <option value="">過去の分析動画...</option>
+                </select>
             </div>
 
             <div class="header-tabs">
@@ -289,7 +292,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.1.0"></script>
+    <script src="app.js?v=2.2.0"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');

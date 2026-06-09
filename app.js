@@ -121,7 +121,10 @@ const state = {
     // ドラッグとプレビュー制御用の変数
     isDraggingPiece: false,
     pendingTacticsRender: false,
-    eraserPreviewTimeout: null
+    eraserPreviewTimeout: null,
+    
+    // 動画の履歴管理
+    videoHistory: []
 };
 
 // ----------------------------------------------------------------------------
@@ -194,6 +197,63 @@ function initYouTubePlayer() {
     }
 }
 
+// 動画履歴の描画
+function renderVideoHistorySelect() {
+    if (!dom.videoHistorySelect) return;
+    dom.videoHistorySelect.innerHTML = '<option value="">過去の分析動画...</option>';
+    state.videoHistory.forEach(item => {
+        const opt = document.createElement("option");
+        opt.value = item.videoId;
+        opt.textContent = item.title;
+        if (item.videoId === state.videoId) {
+            opt.selected = true;
+        }
+        dom.videoHistorySelect.appendChild(opt);
+    });
+}
+
+// 過去の動画履歴に新規登録または更新
+function addVideoToHistory(videoId, url, title) {
+    if (!videoId) return;
+    
+    const index = state.videoHistory.findIndex(item => item.videoId === videoId);
+    const now = new Date().toISOString();
+    
+    if (index !== -1) {
+        state.videoHistory[index].title = title || state.videoHistory[index].title;
+        state.videoHistory[index].url = url || state.videoHistory[index].url;
+        state.videoHistory[index].lastAccessed = now;
+    } else {
+        state.videoHistory.push({
+            videoId: videoId,
+            url: url || `https://www.youtube.com/watch?v=${videoId}`,
+            title: title || `動画: ${videoId}`,
+            lastAccessed: now
+        });
+    }
+    
+    // 最終アクセス日時の降順（新しい順）でソート
+    state.videoHistory.sort((a, b) => new Date(b.lastAccessed) - new Date(a.lastAccessed));
+    
+    // 最大30件
+    if (state.videoHistory.length > 30) {
+        state.videoHistory = state.videoHistory.slice(0, 30);
+    }
+    
+    localStorage.setItem("splyza_video_history", JSON.stringify(state.videoHistory));
+    renderVideoHistorySelect();
+}
+
+// プレイヤーから動画タイトルを取得して履歴を更新
+function updateVideoTitleFromPlayer() {
+    if (state.player && state.playerReady && typeof state.player.getVideoData === "function") {
+        const videoData = state.player.getVideoData();
+        if (videoData && videoData.title) {
+            addVideoToHistory(state.videoId, localStorage.getItem("splyza_youtube_url"), videoData.title);
+        }
+    }
+}
+
 
 // DOM参照の保持
 let dom = {};
@@ -210,6 +270,7 @@ function initDOMReferences() {
         timelineSlider: document.getElementById("timeline-slider"),
         timelineMarkers: document.getElementById("timeline-markers"),
         timelineTicks: document.getElementById("timeline-ticks"),
+        videoHistorySelect: document.getElementById("video-history-select"),
         
         // アノテーション
         canvas: document.getElementById("annotation-canvas"),
@@ -290,6 +351,17 @@ function loadSettingsFromStorage() {
     }
     if (savedVideoId) {
         state.videoId = savedVideoId;
+    }
+
+    // 過去の動画履歴の読み込み
+    const savedHistory = localStorage.getItem("splyza_video_history");
+    if (savedHistory) {
+        try {
+            state.videoHistory = JSON.parse(savedHistory);
+            renderVideoHistorySelect();
+        } catch (e) {
+            console.error("履歴のロードに失敗しました", e);
+        }
     }
 
     // Firebase構成
@@ -660,6 +732,9 @@ function onPlayerReady(event) {
     
     // クイックタグボタンのレンダリングを確実に行う（playerReadyになったため）
     renderTagsList();
+
+    // プレイヤーから動画タイトルを取得して履歴を更新
+    updateVideoTitleFromPlayer();
 
     console.log("YouTube Player Ready. Video ID:", state.videoId);
 }
@@ -1750,9 +1825,33 @@ function setupEventListeners() {
             state.videoId = videoId;
             localStorage.setItem("splyza_youtube_url", url);
             localStorage.setItem("splyza_video_id", videoId);
+            
+            // 履歴に一時登録 (プレイヤーロード後に正式タイトルに更新)
+            addVideoToHistory(videoId, url, `動画: ${videoId}`);
+            
             showNotification("動画を読み込んでいます...", "info", 2000);
             loadYouTubeVideo(videoId);
             loadAllData();
+        });
+    }
+
+    // 過去の分析動画履歴の切り替え
+    if (dom.videoHistorySelect) {
+        dom.videoHistorySelect.addEventListener("change", (e) => {
+            const videoId = e.target.value;
+            if (!videoId) return;
+            
+            const historyItem = state.videoHistory.find(item => item.videoId === videoId);
+            if (historyItem) {
+                state.videoId = videoId;
+                dom.youtubeUrl.value = historyItem.url;
+                localStorage.setItem("splyza_youtube_url", historyItem.url);
+                localStorage.setItem("splyza_video_id", videoId);
+                
+                showNotification("動画を履歴から切り替えています...", "info", 2000);
+                loadYouTubeVideo(videoId);
+                loadAllData();
+            }
         });
     }
 
