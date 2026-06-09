@@ -777,15 +777,20 @@ function updateCanvasToolClass() {
 }
 
 function initCanvas() {
-    // マウス・タッチ・ペン共通のポインターイベント登録 (映像分析用)
-    state.canvas.addEventListener("pointerdown", startDrawing);
-    state.canvas.addEventListener("pointermove", draw);
-    state.canvas.addEventListener("pointerup", stopDrawing);
-    state.canvas.addEventListener("pointerleave", stopDrawing);
+    // マウスイベント登録 (PC用)
+    state.canvas.addEventListener("mousedown", startDrawing);
+    state.canvas.addEventListener("mousemove", draw);
+    state.canvas.addEventListener("mouseup", stopDrawing);
+    state.canvas.addEventListener("mouseleave", stopDrawing);
+
+    // タッチイベント登録 (iPad・モバイル用、スクロール干渉防止のため passive: false)
+    state.canvas.addEventListener("touchstart", startDrawingTouch, { passive: false });
+    state.canvas.addEventListener("touchmove", drawTouch, { passive: false });
+    state.canvas.addEventListener("touchend", stopDrawing);
     
-    // 消しゴム用のカスタム円カーソル表示制御
+    // 消しゴム用のカスタム円カーソル表示制御 (マウス用)
     const eraserCursor = document.getElementById("eraser-cursor");
-    state.canvas.addEventListener("pointermove", (e) => {
+    state.canvas.addEventListener("mousemove", (e) => {
         if (state.activeTool === "eraser" && eraserCursor) {
             const rect = state.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -800,10 +805,10 @@ function initCanvas() {
             eraserCursor.style.display = "none";
         }
     });
-    state.canvas.addEventListener("pointerleave", () => {
+    state.canvas.addEventListener("mouseleave", () => {
         if (eraserCursor) eraserCursor.style.display = "none";
     });
-    state.canvas.addEventListener("pointerenter", (e) => {
+    state.canvas.addEventListener("mouseenter", (e) => {
         if (state.activeTool === "eraser" && eraserCursor) {
             eraserCursor.style.display = "block";
         }
@@ -824,6 +829,29 @@ function resizeCanvas() {
     
     // 再描画
     renderAnnotationsOnCanvas();
+}
+
+// タッチデバイス用ヘルパー関数 (映像分析用)
+function startDrawingTouch(e) {
+    if (e.touches.length > 0) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        startDrawing({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+    }
+}
+
+function drawTouch(e) {
+    if (e.touches.length > 0) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        draw({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+    }
 }
 
 // 描画開始
@@ -1552,14 +1580,19 @@ function updateTacticsCanvasToolClass() {
 
 // 作戦盤での手書き機能
 function initTacticsCanvas() {
-    dom.tacticsCanvas.addEventListener("pointerdown", startTacticsDraw);
-    dom.tacticsCanvas.addEventListener("pointermove", drawTacticsLine);
-    dom.tacticsCanvas.addEventListener("pointerup", stopTacticsDraw);
-    dom.tacticsCanvas.addEventListener("pointerleave", stopTacticsDraw);
+    dom.tacticsCanvas.addEventListener("mousedown", startTacticsDraw);
+    dom.tacticsCanvas.addEventListener("mousemove", drawTacticsLine);
+    dom.tacticsCanvas.addEventListener("mouseup", stopTacticsDraw);
+    dom.tacticsCanvas.addEventListener("mouseleave", stopTacticsDraw);
+
+    // タッチイベント登録 (iPad・モバイル用、スクロール干渉防止のため passive: false)
+    dom.tacticsCanvas.addEventListener("touchstart", startTacticsDrawTouch, { passive: false });
+    dom.tacticsCanvas.addEventListener("touchmove", drawTacticsLineTouch, { passive: false });
+    dom.tacticsCanvas.addEventListener("touchend", stopTacticsDraw);
     
-    // 消しゴム用のカスタム円カーソル表示制御（作戦盤用は24px固定）
+    // 消しゴム用のカスタム円カーソル表示制御（作戦盤用は24px固定、マウス用）
     const tacticsEraserCursor = document.getElementById("tactics-eraser-cursor");
-    dom.tacticsCanvas.addEventListener("pointermove", (e) => {
+    dom.tacticsCanvas.addEventListener("mousemove", (e) => {
         if (state.activeTacticsTool === "eraser" && tacticsEraserCursor) {
             const rect = dom.tacticsCanvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -1574,10 +1607,10 @@ function initTacticsCanvas() {
             tacticsEraserCursor.style.display = "none";
         }
     });
-    dom.tacticsCanvas.addEventListener("pointerleave", () => {
+    dom.tacticsCanvas.addEventListener("mouseleave", () => {
         if (tacticsEraserCursor) tacticsEraserCursor.style.display = "none";
     });
-    dom.tacticsCanvas.addEventListener("pointerenter", (e) => {
+    dom.tacticsCanvas.addEventListener("mouseenter", (e) => {
         if (state.activeTacticsTool === "eraser" && tacticsEraserCursor) {
             tacticsEraserCursor.style.display = "block";
         }
@@ -1588,6 +1621,29 @@ function initTacticsCanvas() {
     
     // 初期カーソル設定
     updateTacticsCanvasToolClass();
+}
+
+// タッチデバイス用ヘルパー関数 (作戦盤用)
+function startTacticsDrawTouch(e) {
+    if (e.touches.length > 0) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        startTacticsDraw({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+    }
+}
+
+function drawTacticsLineTouch(e) {
+    if (e.touches.length > 0) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        drawTacticsLine({
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+    }
 }
 
 function startTacticsDraw(e) {
