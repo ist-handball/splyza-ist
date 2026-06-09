@@ -348,6 +348,7 @@ body {
     height: 100%;
     z-index: 2;
     pointer-events: none; /* 描画ツールがアクティブでない時はクリック透過 */
+    touch-action: none; /* タッチデバイスでのスクロール等を防ぎ、スムーズに描き込めるようにする */
 }
 
 #annotation-canvas.drawing-active {
@@ -965,6 +966,7 @@ body {
     height: 100%;
     z-index: 2;
     cursor: crosshair;
+    touch-action: none; /* タッチデバイスでのスクロール等を防ぎ、スムーズに描き込めるようにする */
 }
 
 /* 駒配置レイヤー */
@@ -1428,6 +1430,95 @@ body {
 }
 .court-piece .delete-piece-badge {
     pointer-events: auto; /* 削除ボタンのみポインターイベントを有効に */
+}
+
+/* -------------------------------------------------------------
+   RESPONSIVE DESIGN (MEDIA QUERIES)
+   ------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    /* タブレット縦画面やスマホなどの狭い画面用の設定 */
+    body {
+        overflow-y: auto !important; /* 全体スクロールを許可 */
+        height: auto !important;
+    }
+    
+    .app-container {
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    .app-header {
+        height: auto !important;
+        flex-direction: column !important;
+        padding: 16px !important;
+        gap: 12px !important;
+        align-items: stretch !important;
+    }
+    
+    .header-logo {
+        justify-content: center !important;
+    }
+    
+    .header-video-input {
+        margin: 0 !important;
+        max-width: none !important;
+        width: 100% !important;
+    }
+    
+    .header-tabs {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    
+    .header-tabs .tab-btn {
+        flex: 1 !important;
+        justify-content: center !important;
+    }
+    
+    .header-actions {
+        justify-content: center !important;
+        width: 100% !important;
+    }
+    
+    .app-main {
+        overflow: visible !important;
+    }
+    
+    .analysis-grid, .tactics-grid {
+        grid-template-columns: 1fr !important; /* 1カラムにする */
+        height: auto !important;
+        overflow: visible !important;
+        padding: 12px !important;
+        gap: 20px !important;
+    }
+    
+    .player-column, .court-column {
+        height: auto !important;
+    }
+    
+    .player-wrapper {
+        aspect-ratio: 16 / 9 !important; /* アスペクト比を固定してレスポンシブに */
+        flex: none !important;
+        height: auto !important;
+        min-height: 280px !important;
+    }
+    
+    .court-wrapper {
+        aspect-ratio: 100 / 54 !important; /* ハンドボールコートの比率に合わせる */
+        flex: none !important;
+        height: auto !important;
+        min-height: 280px !important;
+    }
+    
+    .sidebar-column {
+        height: 500px !important; /* サイドバーの高さは適度に確保 */
+        min-height: 400px !important;
+    }
+    
+    .tactics-sidebar {
+        height: auto !important;
+        overflow-y: visible !important;
+    }
 }
 
 

@@ -777,15 +777,15 @@ function updateCanvasToolClass() {
 }
 
 function initCanvas() {
-    // マウス・タッチイベントの登録 (映像分析用)
-    state.canvas.addEventListener("mousedown", startDrawing);
-    state.canvas.addEventListener("mousemove", draw);
-    state.canvas.addEventListener("mouseup", stopDrawing);
-    state.canvas.addEventListener("mouseleave", stopDrawing);
+    // マウス・タッチ・ペン共通のポインターイベント登録 (映像分析用)
+    state.canvas.addEventListener("pointerdown", startDrawing);
+    state.canvas.addEventListener("pointermove", draw);
+    state.canvas.addEventListener("pointerup", stopDrawing);
+    state.canvas.addEventListener("pointerleave", stopDrawing);
     
     // 消しゴム用のカスタム円カーソル表示制御
     const eraserCursor = document.getElementById("eraser-cursor");
-    state.canvas.addEventListener("mousemove", (e) => {
+    state.canvas.addEventListener("pointermove", (e) => {
         if (state.activeTool === "eraser" && eraserCursor) {
             const rect = state.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -800,10 +800,10 @@ function initCanvas() {
             eraserCursor.style.display = "none";
         }
     });
-    state.canvas.addEventListener("mouseleave", () => {
+    state.canvas.addEventListener("pointerleave", () => {
         if (eraserCursor) eraserCursor.style.display = "none";
     });
-    state.canvas.addEventListener("mouseenter", (e) => {
+    state.canvas.addEventListener("pointerenter", (e) => {
         if (state.activeTool === "eraser" && eraserCursor) {
             eraserCursor.style.display = "block";
         }
@@ -1552,14 +1552,14 @@ function updateTacticsCanvasToolClass() {
 
 // 作戦盤での手書き機能
 function initTacticsCanvas() {
-    dom.tacticsCanvas.addEventListener("mousedown", startTacticsDraw);
-    dom.tacticsCanvas.addEventListener("mousemove", drawTacticsLine);
-    dom.tacticsCanvas.addEventListener("mouseup", stopTacticsDraw);
-    dom.tacticsCanvas.addEventListener("mouseleave", stopTacticsDraw);
+    dom.tacticsCanvas.addEventListener("pointerdown", startTacticsDraw);
+    dom.tacticsCanvas.addEventListener("pointermove", drawTacticsLine);
+    dom.tacticsCanvas.addEventListener("pointerup", stopTacticsDraw);
+    dom.tacticsCanvas.addEventListener("pointerleave", stopTacticsDraw);
     
     // 消しゴム用のカスタム円カーソル表示制御（作戦盤用は24px固定）
     const tacticsEraserCursor = document.getElementById("tactics-eraser-cursor");
-    dom.tacticsCanvas.addEventListener("mousemove", (e) => {
+    dom.tacticsCanvas.addEventListener("pointermove", (e) => {
         if (state.activeTacticsTool === "eraser" && tacticsEraserCursor) {
             const rect = dom.tacticsCanvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
@@ -1574,14 +1574,17 @@ function initTacticsCanvas() {
             tacticsEraserCursor.style.display = "none";
         }
     });
-    dom.tacticsCanvas.addEventListener("mouseleave", () => {
+    dom.tacticsCanvas.addEventListener("pointerleave", () => {
         if (tacticsEraserCursor) tacticsEraserCursor.style.display = "none";
     });
-    dom.tacticsCanvas.addEventListener("mouseenter", (e) => {
+    dom.tacticsCanvas.addEventListener("pointerenter", (e) => {
         if (state.activeTacticsTool === "eraser" && tacticsEraserCursor) {
             tacticsEraserCursor.style.display = "block";
         }
     });
+    
+    // ウィンドウリサイズ時にもキャンバスサイズをフィットさせる
+    window.addEventListener("resize", resizeTacticsCanvas);
     
     // 初期カーソル設定
     updateTacticsCanvasToolClass();
