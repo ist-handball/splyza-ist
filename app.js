@@ -1,0 +1,1974 @@
+// ============================================================================
+// SPLYZA Teams Clone - Core Application Logic
+// ============================================================================
+
+// グローバルエラー監視 (デバッグ用)
+window.addEventListener("error", function(e) {
+    const errorMsg = `JS Error: ${e.message}\nFile: ${e.filename.split('/').pop()}\nLine: ${e.lineno}:${e.colno}`;
+    console.error(errorMsg);
+    alert("エラーを検知しました:\n" + errorMsg);
+});
+
+// ----------------------------------------------------------------------------
+// 0. 初期化フラグと通知システム
+// ----------------------------------------------------------------------------
+let isDOMReady = false;
+let isYTAPIReady = false;
+
+// トースト通知を表示する関数
+function showNotification(message, type = "info", duration = 4000) {
+    let container = document.getElementById("toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "toast-container";
+        container.className = "toast-container";
+        document.body.appendChild(container);
+    }
+    
+    const toast = document.createElement("div");
+    toast.className = `toast toast-${type}`;
+    
+    let icon = "fa-info-circle";
+    if (type === "error") icon = "fa-exclamation-circle";
+    else if (type === "warning") icon = "fa-exclamation-triangle";
+    else if (type === "success") icon = "fa-check-circle";
+    
+    toast.innerHTML = `
+        <div style="display:flex; align-items:center; gap:10px;">
+            <i class="fa-solid ${icon}"></i>
+            <span>${message}</span>
+        </div>
+        <button class="toast-close">&times;</button>
+    `;
+    
+    toast.querySelector(".toast-close").addEventListener("click", () => {
+        toast.classList.remove("show");
+        setTimeout(() => toast.remove(), 300);
+    });
+    
+    container.appendChild(toast);
+    
+    // アニメーション用に少し遅らせてクラス付与
+    setTimeout(() => {
+        toast.classList.add("show");
+    }, 50);
+    
+    // 自動消去
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.classList.remove("show");
+            setTimeout(() => toast.remove(), 300);
+        }
+    }, duration);
+}
+
+// ----------------------------------------------------------------------------
+// 1. グローバル状態管理
+// ----------------------------------------------------------------------------
+const state = {
+    // ユーザー情報
+    username: "ゲストユーザー",
+    
+    // 現在のYouTube動画ID
+    videoId: "", // デフォルト動画なし (ユーザーが入力して読込する)
+    
+    // UIモード ('analysis-mode' | 'tactics-mode')
+    activeTab: "analysis-mode",
+    
+    // Firebase設定 & 接続ステータス
+    firebaseConfig: null,
+    isFirebaseEnabled: false,
+    db: null,
+    unsubscribeList: [], // リアルタイムリスナーの解除用
+
+    // 映像分析用データ (Firebase未接続時はLocalStorageにフォールバック)
+    annotations: [], // 描き込みデータ
+    tags: [],        // プレー分類タグ
+    comments: [],    // タイムタグ付きチャット
+
+    // 作戦盤用データ
+    courtType: "handball",
+    tacticsPieces: [], // コート上の駒リスト { id, team, number, x, y }
+    tacticsDrawings: [], // 作戦盤上の描画パス
+
+    // YouTube プレイヤー関連
+    player: null,
+    playerReady: false,
+    playbackTime: 0,   // 現在の再生時間（秒）
+    duration: 0,       // 動画の総再生時間（秒）
+    timeTrackerInterval: null,
+
+    // アノテーションCanvas関連
+    canvas: null,
+    ctx: null,
+    isDrawing: false,
+    activeTool: "pen", // 'pen' | 'arrow' | 'rect' | 'circle' | 'text'
+    currentColor: "#ff4757",
+    brushSize: 4,
+    eraserSize: 8, // 消しゴム用のサイズ状態を追加
+    startX: 0,
+    startY: 0,
+    currentDrawingObj: null, // 現在描画中のオブジェクト
+
+    // 作戦盤Canvas関連
+    tacticsCanvas: null,
+    tacticsCtx: null,
+    isTacticsDrawing: false,
+    activeTacticsTool: "pen", // 'pen' | 'eraser'
+    currentTacticsColor: "#ffffff",
+    tacticsHistory: [],
+    
+    // ドラッグとプレビュー制御用の変数
+    isDraggingPiece: false,
+    pendingTacticsRender: false,
+    eraserPreviewTimeout: null
+};
+
+// ----------------------------------------------------------------------------
+// 2. 初期化とイベントリスナー設定
+// ----------------------------------------------------------------------------
+document.addEventListener("DOMContentLoaded", () => {
+    isDOMReady = true;
+    console.log("ANALYST: DOMContentLoaded Triggered");
+    
+    try {
+        console.log("ANALYST: Initializing DOM references...");
+        initDOMReferences();
+        
+        console.log("ANALYST: Loading settings...");
+        loadSettingsFromStorage();
+        
+        console.log("ANALYST: Initializing tabs...");
+        initAppTabs();
+        
+        console.log("ANALYST: Initializing canvas...");
+        initCanvas();
+        
+        console.log("ANALYST: Initializing tactics canvas...");
+        initTacticsCanvas();
+        
+        console.log("ANALYST: Initializing drag and drop...");
+        initDragAndDrop();
+        
+        console.log("ANALYST: Setting up event listeners...");
+        setupEventListeners();
+        
+        console.log("ANALYST: Updating UI for Firebase status...");
+        updateUIForFirebaseStatus();
+        
+        console.log("ANALYST: Loading all data...");
+        loadAllData();
+        
+        console.log("ANALYST: Rendering tags list...");
+        renderTagsList();
+        
+        showNotification("アプリケーションが正常に初期化されました。", "success", 2000);
+    } catch (e) {
+        console.error("ANALYST: Initialization Error", e);
+        alert("アプリ起動中にエラーが発生しました:\n" + e.message + "\n" + e.stack);
+        return;
+    }
+
+    // YouTube APIが既にロード済みの場合のフォールバック (動画IDが設定されている場合のみ起動)
+    if ((isYTAPIReady || (typeof YT !== "undefined" && YT.Player)) && state.videoId) {
+        isYTAPIReady = true;
+        initYouTubePlayer();
+    }
+
+    // 7秒後に YouTube API がロードされていない場合に通知を表示
+    setTimeout(() => {
+        if (!isYTAPIReady) {
+            console.warn("YouTube API load timed out or delayed.");
+            showNotification(
+                "YouTube APIの読み込みに時間がかかっています。ネットワーク接続を確認するか、広告ブロッカーを一時的にオフにしてみてください。", 
+                "warning", 
+                7000
+            );
+        }
+    }, 7000);
+});
+
+function initYouTubePlayer() {
+    if (!state.player && state.videoId) {
+        loadYouTubeVideo(state.videoId);
+    }
+}
+
+
+// DOM参照の保持
+let dom = {};
+function initDOMReferences() {
+    dom = {
+        youtubeUrl: document.getElementById("youtube-url"),
+        loadVideoBtn: document.getElementById("load-video-btn"),
+        playPauseBtn: document.getElementById("play-pause-btn"),
+        prevFrameBtn: document.getElementById("prev-frame-btn"),
+        nextFrameBtn: document.getElementById("next-frame-btn"),
+        currentTime: document.getElementById("current-time"),
+        totalTime: document.getElementById("total-time"),
+        speedSelect: document.getElementById("speed-select"),
+        timelineSlider: document.getElementById("timeline-slider"),
+        timelineMarkers: document.getElementById("timeline-markers"),
+        timelineTicks: document.getElementById("timeline-ticks"),
+        
+        // アノテーション
+        canvas: document.getElementById("annotation-canvas"),
+        brushSize: document.getElementById("brush-size"),
+        brushSizeVal: document.getElementById("brush-size-val"),
+        undoBtn: document.getElementById("undo-btn"),
+        clearBtn: document.getElementById("clear-btn"),
+        toolBtns: document.querySelectorAll(".tool-btn"),
+        colorDots: document.querySelectorAll(".color-dot"),
+        
+        // サイドバー
+        sidebarTabs: document.querySelectorAll(".sidebar-tab-btn"),
+        sidebarContents: document.querySelectorAll(".sidebar-tab-content"),
+        quickTagsContainer: document.getElementById("quick-tags-container"),
+        newTagName: document.getElementById("new-tag-name"),
+        addTagBtn: document.getElementById("add-tag-btn"),
+        tagHistoryList: document.getElementById("tag-history-list"),
+        chatMessages: document.getElementById("chat-messages"),
+        chatMessageInput: document.getElementById("chat-message-input"),
+        sendChatBtn: document.getElementById("send-chat-btn"),
+        commentAttachTime: document.getElementById("comment-attach-time"),
+        commentTimeStamp: document.getElementById("comment-time-stamp"),
+        
+        // 作戦盤
+        courtWrapper: document.getElementById("court-wrapper"),
+        clearTacticsDrawings: document.getElementById("clear-tactics-drawings"),
+        resetTacticsPieces: document.getElementById("reset-tactics-pieces"),
+        courtSvgContainer: document.getElementById("court-svg-container"),
+        tacticsCanvas: document.getElementById("tactics-canvas"),
+        piecesOverlay: document.getElementById("pieces-overlay"),
+        poolTeamA: document.getElementById("pool-team-a"),
+        poolTeamB: document.getElementById("pool-team-b"),
+        poolObjects: document.getElementById("pool-objects"),
+        ttoolBtns: document.querySelectorAll(".ttool-btn"),
+        tcolorDots: document.querySelectorAll(".tcolor-dot"),
+        
+        // 設定モーダル
+        settingsModal: document.getElementById("settings-modal"),
+        openSettingsBtn: document.getElementById("open-settings-btn"),
+        closeSettingsBtn: document.getElementById("close-settings-btn"),
+        settingsUsername: document.getElementById("settings-username"),
+        fbApiKey: document.getElementById("fb-api-key"),
+        fbAuthDomain: document.getElementById("fb-auth-domain"),
+        fbProjectId: document.getElementById("fb-project-id"),
+        fbAppId: document.getElementById("fb-app-id"),
+        saveSettingsBtn: document.getElementById("save-settings-btn"),
+        clearSettingsBtn: document.getElementById("clear-settings-btn"),
+        userDisplayName: document.getElementById("user-display-name")
+    };
+    
+    state.canvas = dom.canvas;
+    state.ctx = dom.canvas.getContext("2d");
+    state.tacticsCanvas = dom.tacticsCanvas;
+    state.tacticsCtx = dom.tacticsCanvas.getContext("2d");
+}
+
+// ----------------------------------------------------------------------------
+// 3. 設定の読み込みとFirebase初期化
+// ----------------------------------------------------------------------------
+function loadSettingsFromStorage() {
+    // ユーザー名
+    const savedName = localStorage.getItem("splyza_username");
+    if (savedName) {
+        state.username = savedName;
+        dom.settingsUsername.value = savedName;
+    } else {
+        // ランダムなゲスト名を生成
+        state.username = "ゲスト_" + Math.floor(1000 + Math.random() * 9000);
+        dom.settingsUsername.value = state.username;
+    }
+    updateUserBadge();
+
+    // Firebase構成
+    const savedFbConfig = localStorage.getItem("splyza_firebase_config");
+    if (savedFbConfig) {
+        try {
+            state.firebaseConfig = JSON.parse(savedFbConfig);
+            dom.fbApiKey.value = state.firebaseConfig.apiKey || "";
+            dom.fbAuthDomain.value = state.firebaseConfig.authDomain || "";
+            dom.fbProjectId.value = state.firebaseConfig.projectId || "";
+            dom.fbAppId.value = state.firebaseConfig.appId || "";
+            
+            initFirebase(state.firebaseConfig);
+        } catch (e) {
+            console.error("Firebase設定の読み込みに失敗しました", e);
+        }
+    }
+}
+
+function initFirebase(config) {
+    if (!config || !config.apiKey || !config.projectId) {
+        state.isFirebaseEnabled = false;
+        return;
+    }
+    
+    try {
+        // 既存のアプリがあればクリア
+        if (firebase.apps.length > 0) {
+            firebase.app().delete();
+        }
+        
+        firebase.initializeApp(config);
+        state.db = firebase.firestore();
+        state.isFirebaseEnabled = true;
+        console.log("Firebase initialized successfully.");
+    } catch (e) {
+        console.error("Firebaseの初期化に失敗しました", e);
+        state.isFirebaseEnabled = false;
+    }
+}
+
+function updateUserBadge() {
+    dom.userDisplayName.innerHTML = `<i class="fa-solid fa-user"></i> ${state.username}`;
+    if (state.isFirebaseEnabled) {
+        dom.userDisplayName.classList.add("firebase-active");
+    } else {
+        dom.userDisplayName.classList.remove("firebase-active");
+    }
+}
+
+function updateUIForFirebaseStatus() {
+    updateUserBadge();
+    const statusText = state.isFirebaseEnabled ? "クラウド同期中" : "ローカル保存モード";
+    console.log(`システムステータス: ${statusText}`);
+}
+
+// ----------------------------------------------------------------------------
+// 4. データ同期 (Firestore & LocalStorage フォールバック)
+// ----------------------------------------------------------------------------
+// データ保存
+async function saveData(collectionName, docId, data) {
+    const videoCollection = `video_${state.videoId}_${collectionName}`;
+    const payload = {
+        ...data,
+        updatedAt: new Date().toISOString()
+    };
+
+    if (state.isFirebaseEnabled && state.db) {
+        try {
+            await state.db.collection(videoCollection).doc(docId).set(payload);
+            if (collectionName === "tags") {
+                showNotification(`タグ「${data.name}」を保存しました`, "success", 2000);
+            }
+        } catch (e) {
+            console.error("Firebase保存エラー。ローカルに書き込みます", e);
+            saveDataLocally(videoCollection, docId, payload);
+            showNotification("Firebase保存に失敗しました。ローカルモードで保存しました。", "warning", 3000);
+        }
+    } else {
+        saveDataLocally(videoCollection, docId, payload);
+        if (collectionName === "tags") {
+            showNotification(`タグ「${data.name}」をローカルに保存しました`, "success", 2000);
+        }
+    }
+}
+
+// データ削除
+async function deleteData(collectionName, docId) {
+    const videoCollection = `video_${state.videoId}_${collectionName}`;
+    
+    if (state.isFirebaseEnabled && state.db) {
+        try {
+            await state.db.collection(videoCollection).doc(docId).delete();
+            showNotification("データを削除しました。", "info", 2000);
+        } catch (e) {
+            console.error("Firebase削除エラー。ローカルから削除します", e);
+            deleteDataLocally(videoCollection, docId);
+            showNotification("Firebaseからの削除に失敗しました。ローカルから削除しました。", "warning", 3000);
+        }
+    } else {
+        deleteDataLocally(videoCollection, docId);
+        showNotification("ローカルデータを削除しました。", "info", 2000);
+    }
+}
+
+// ローカル保存ヘルパー
+function saveDataLocally(collection, docId, payload) {
+    let localDb = JSON.parse(localStorage.getItem(collection) || "{}");
+    localDb[docId] = payload;
+    localStorage.setItem(collection, JSON.stringify(localDb));
+    // 同期トリガーを擬似的に引く
+    triggerLocalSync(collection);
+}
+
+function deleteDataLocally(collection, docId) {
+    let localDb = JSON.parse(localStorage.getItem(collection) || "{}");
+    delete localDb[docId];
+    localStorage.setItem(collection, JSON.stringify(localDb));
+    // 同期トリガーを擬似的に引く
+    triggerLocalSync(collection);
+}
+
+// リアルタイム購読の開始
+function startDataSubscriptions() {
+    // 既存のリスナーを解除
+    state.unsubscribeList.forEach(unsub => unsub());
+    state.unsubscribeList = [];
+
+    const collections = ["annotations", "tags", "comments", "tactics"];
+    
+    if (state.isFirebaseEnabled && state.db) {
+        collections.forEach(col => {
+            const videoCollection = `video_${state.videoId}_${col}`;
+            const unsub = state.db.collection(videoCollection).onSnapshot(snapshot => {
+                const items = [];
+                snapshot.forEach(doc => {
+                    items.push({ id: doc.id, ...doc.data() });
+                });
+                handleIncomingData(col, items);
+            }, err => {
+                console.error(`Subscription error for ${col}, falling back to local`, err);
+                setupLocalSubscription(col);
+            });
+            state.unsubscribeList.push(unsub);
+        });
+    } else {
+        // ローカルでの監視セットアップ
+        collections.forEach(col => {
+            setupLocalSubscription(col);
+        });
+    }
+}
+
+// ローカルの擬似的なサブスクリプション
+function setupLocalSubscription(col) {
+    const videoCollection = `video_${state.videoId}_${col}`;
+    
+    // 初回読み込み
+    loadLocalData(col, videoCollection);
+    
+    // イベント監視の設定 (同じタブ内での変更検知用にカスタムイベントを使用)
+    const syncHandler = () => loadLocalData(col, videoCollection);
+    window.addEventListener(`sync_${videoCollection}`, syncHandler);
+    
+    // 解除用に登録
+    state.unsubscribeList.push(() => {
+        window.removeEventListener(`sync_${videoCollection}`, syncHandler);
+    });
+}
+
+function triggerLocalSync(collection) {
+    const event = new CustomEvent(`sync_${collection}`);
+    window.dispatchEvent(event);
+}
+
+function loadLocalData(col, videoCollection) {
+    const localDb = JSON.parse(localStorage.getItem(videoCollection) || "{}");
+    const items = Object.keys(localDb).map(key => ({ id: key, ...localDb[key] }));
+    handleIncomingData(col, items);
+}
+
+// 受信したデータを適切な状態にマッピングしUIを更新
+function handleIncomingData(col, items) {
+    if (col === "annotations") {
+        state.annotations = items;
+        renderAnnotationsOnCanvas();
+        updateTimelineMarkers();
+    } else if (col === "tags") {
+        // 再生時間の昇順でソート
+        state.tags = items.sort((a, b) => a.time - b.time);
+        renderTagsList();
+        updateTimelineMarkers();
+    } else if (col === "comments") {
+        // 作成日時の昇順でソート
+        state.comments = items.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        renderCommentsList();
+    } else if (col === "tactics") {
+        // tacticsは単一ドキュメント、または複数ドキュメントとして管理。ここでは簡易的にid="board"に集約
+        const boardDoc = items.find(item => item.id === "board");
+        if (boardDoc) {
+            const newPieces = boardDoc.pieces || [];
+            const newDrawings = boardDoc.drawings || [];
+            
+            // 現在のローカル状態と全く同じ内容（移動直後など）であれば無駄な再描画（ドラッグ中DOM消滅）をスキップする
+            const piecesChanged = JSON.stringify(state.tacticsPieces) !== JSON.stringify(newPieces);
+            const drawingsChanged = JSON.stringify(state.tacticsDrawings) !== JSON.stringify(newDrawings);
+            
+            if (piecesChanged || drawingsChanged) {
+                state.tacticsPieces = newPieces;
+                state.tacticsDrawings = newDrawings;
+                if (state.isDraggingPiece) {
+                    state.pendingTacticsRender = true;
+                } else {
+                    renderTacticsBoard();
+                }
+            }
+        }
+    }
+}
+
+function loadAllData() {
+    startDataSubscriptions();
+}
+
+// ----------------------------------------------------------------------------
+// 5. タブ切り替え制御
+// ----------------------------------------------------------------------------
+function initAppTabs() {
+    const tabs = document.querySelectorAll(".header-tabs .tab-btn");
+    tabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            tabs.forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            
+            const targetMode = tab.getAttribute("data-tab");
+            state.activeTab = targetMode;
+            
+            document.querySelectorAll(".app-main .tab-content").forEach(content => {
+                content.classList.remove("active");
+            });
+            document.getElementById(targetMode).classList.add("active");
+            
+            if (targetMode === "analysis-mode") {
+                // YouTubeプレーヤー再開時のリサイズ対応など
+                resizeCanvas();
+            } else if (targetMode === "tactics-mode") {
+                // 作戦盤の読み込みと描画
+                initTacticsBoard();
+            }
+        });
+    });
+
+    // サイドバーのタブ切り替え (映像分析モード内)
+    dom.sidebarTabs.forEach(tab => {
+        tab.addEventListener("click", () => {
+            dom.sidebarTabs.forEach(t => t.classList.remove("active"));
+            tab.classList.add("active");
+            
+            const targetId = tab.getAttribute("data-sidebar-tab");
+            dom.sidebarContents.forEach(content => {
+                content.classList.remove("active");
+            });
+            document.getElementById(targetId).classList.add("active");
+        });
+    });
+}
+
+// ----------------------------------------------------------------------------
+// 6. YouTube IFrame Player API 連携
+// ----------------------------------------------------------------------------
+// YouTube API呼び出し時のグローバルコールバック
+window.onYouTubeIframeAPIReady = function() {
+    isYTAPIReady = true;
+    console.log("YouTube IFrame API Ready");
+    if (isDOMReady) {
+        initYouTubePlayer();
+    }
+};
+
+function loadYouTubeVideo(videoId) {
+    if (typeof YT === "undefined" || !YT.Player) {
+        console.error("YouTube API is not loaded yet.");
+        showNotification("YouTube APIがまだ読み込まれていません。ページを再読み込みするか、しばらくお待ちください。", "error");
+        return;
+    }
+    
+    if (!videoId) {
+        showNotification("無効な動画IDまたはURLです。", "warning");
+        return;
+    }
+
+    // すでにプレイヤーが存在し、cueVideoByIdが使える場合は動画IDのみを切り替える
+    if (state.player && state.playerReady && typeof state.player.cueVideoById === "function") {
+        try {
+            state.player.cueVideoById(videoId);
+            // cueVideoById後、durationの更新を待つ
+            setTimeout(() => {
+                retryGetDuration();
+            }, 500);
+            showNotification("動画を切り替えました。", "success");
+            return;
+        } catch (e) {
+            console.warn("cueVideoByIdに失敗しました。再生成します", e);
+        }
+    }
+
+    // プレイヤーが存在するが、再生成が必要な場合は破棄する
+    if (state.player) {
+        try {
+            state.player.destroy();
+        } catch (e) {
+            console.error("Player destroy error", e);
+        }
+        state.player = null;
+        state.playerReady = false;
+    }
+
+    clearInterval(state.timeTrackerInterval);
+    
+    // destroyによってyt-player要素がDOMから消滅している可能性が高いため、コンテナ内に再作成する
+    const container = document.getElementById("yt-player-container");
+    if (!container) {
+        console.error("yt-player-container not found in DOM");
+        return;
+    }
+    
+    container.innerHTML = '<div id="yt-player"></div>';
+    const ytPlayerEl = document.getElementById("yt-player");
+    
+    try {
+        state.player = new YT.Player(ytPlayerEl, {
+            height: "100%",
+            width: "100%",
+            videoId: videoId,
+            playerVars: {
+                autoplay: 0,
+                controls: 1, // YouTube標準コントロールを表示（iframe操作の信頼性を確保するため）
+                rel: 0,
+                modestbranding: 1,
+                fs: 0,
+                playsinline: 1,
+                origin: window.location.origin
+            },
+            events: {
+                onReady: onPlayerReady,
+                onStateChange: onPlayerStateChange
+            }
+        });
+    } catch (err) {
+        console.error("Failed to create YT.Player:", err);
+        showNotification("YouTubeプレイヤーの作成に失敗しました: " + err.message, "error");
+    }
+}
+
+function onPlayerReady(event) {
+    state.playerReady = true;
+    
+    // YouTube APIはonReady直後にduration=0を返す場合があるため、リトライで取得する
+    retryGetDuration();
+
+    // 定期的なシークバーと時間の更新
+    clearInterval(state.timeTrackerInterval);
+    state.timeTrackerInterval = setInterval(updatePlaybackProgress, 250);
+    
+    // Canvasのリサイズを動画アスペクト比に合わせる
+    resizeCanvas();
+    window.addEventListener("resize", resizeCanvas);
+    
+    // クイックタグボタンのレンダリングを確実に行う（playerReadyになったため）
+    renderTagsList();
+
+    console.log("YouTube Player Ready. Video ID:", state.videoId);
+}
+
+// durationの取得をリトライする（YouTube API は準備直後に0を返すことがある）
+function retryGetDuration(retries = 10) {
+    if (!state.player || !state.playerReady) return;
+    const dur = state.player.getDuration();
+    if (dur > 0) {
+        state.duration = dur;
+        dom.totalTime.textContent = formatTime(state.duration);
+        dom.timelineSlider.max = state.duration;
+        generateTimelineTicks();
+        updateTimelineMarkers();
+    } else if (retries > 0) {
+        setTimeout(() => retryGetDuration(retries - 1), 500);
+    }
+}
+
+function onPlayerStateChange(event) {
+    if (event.data === YT.PlayerState.PLAYING) {
+        dom.playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
+        // 再生中はアノテーション入力を不可（透過）にする
+        state.canvas.classList.remove("drawing-active");
+    } else {
+        dom.playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
+        // 一時停止中はアノテーションツールがアクティブなら入力を有効にする
+        if (state.activeTool) {
+            state.canvas.classList.add("drawing-active");
+        }
+    }
+    // 再生状態の変化に伴ってCanvasを再描画
+    renderAnnotationsOnCanvas();
+}
+
+function updatePlaybackProgress() {
+    if (!state.playerReady || !state.player) return;
+    
+    const currTime = state.player.getCurrentTime();
+    state.playbackTime = currTime;
+    
+    // シークバーの更新 (ユーザーが操作中でない場合のみ)
+    if (document.activeElement !== dom.timelineSlider) {
+        dom.timelineSlider.value = currTime;
+    }
+    
+    dom.currentTime.textContent = formatTime(currTime);
+    dom.commentTimeStamp.textContent = formatTime(currTime);
+
+    // アノテーションの描画更新
+    renderAnnotationsOnCanvas();
+}
+
+// 時間のフォーマット (MM:SS)
+function formatTime(seconds) {
+    if (isNaN(seconds)) return "00:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+}
+
+// URLから動画IDを抽出
+function extractVideoId(url) {
+    if (!url) return "";
+    url = url.trim();
+    
+    // 1. URLオブジェクトとしてパースを試みる
+    try {
+        const urlObj = new URL(url);
+        if (urlObj.hostname === "youtu.be") {
+            return urlObj.pathname.slice(1);
+        }
+        if (urlObj.hostname.includes("youtube.com")) {
+            // shorts の場合
+            if (urlObj.pathname.startsWith("/shorts/")) {
+                return urlObj.pathname.split("/")[2];
+            }
+            // embed の場合
+            if (urlObj.pathname.startsWith("/embed/")) {
+                return urlObj.pathname.split("/")[2];
+            }
+            // 通常のウォッチ URL
+            return urlObj.searchParams.get("v") || urlObj.pathname.split("/").pop();
+        }
+    } catch (e) {
+        // URLとして無効な場合はフォールバック
+    }
+
+    // 従来の正規表現フォールバック
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : url;
+}
+
+// ----------------------------------------------------------------------------
+// 7. アノテーション描き込み機能 (Canvas)
+// ----------------------------------------------------------------------------
+// キャンバスのカーソルクラスを更新する関数
+function updateCanvasToolClass() {
+    if (!state.canvas) return;
+    // 既存の tool-* クラスを削除
+    state.canvas.className.split(" ").forEach(cls => {
+        if (cls.startsWith("tool-")) {
+            state.canvas.classList.remove(cls);
+        }
+    });
+    // 新しいツールクラスを追加
+    state.canvas.classList.add(`tool-${state.activeTool}`);
+    
+    // ツール切り替え時に消しゴム以外のときはプレビュー円を消す
+    const eraserCursor = document.getElementById("eraser-cursor");
+    if (eraserCursor && state.activeTool !== "eraser") {
+        eraserCursor.style.display = "none";
+    }
+}
+
+function initCanvas() {
+    // マウス・タッチイベントの登録 (映像分析用)
+    state.canvas.addEventListener("mousedown", startDrawing);
+    state.canvas.addEventListener("mousemove", draw);
+    state.canvas.addEventListener("mouseup", stopDrawing);
+    state.canvas.addEventListener("mouseleave", stopDrawing);
+    
+    // 消しゴム用のカスタム円カーソル表示制御
+    const eraserCursor = document.getElementById("eraser-cursor");
+    state.canvas.addEventListener("mousemove", (e) => {
+        if (state.activeTool === "eraser" && eraserCursor) {
+            const rect = state.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const size = state.eraserSize * 3; // 消しゴムサイズスライダーの太さの3倍
+            eraserCursor.style.width = `${size}px`;
+            eraserCursor.style.height = `${size}px`;
+            eraserCursor.style.left = `${x}px`;
+            eraserCursor.style.top = `${y}px`;
+            eraserCursor.style.display = "block";
+        } else if (eraserCursor) {
+            eraserCursor.style.display = "none";
+        }
+    });
+    state.canvas.addEventListener("mouseleave", () => {
+        if (eraserCursor) eraserCursor.style.display = "none";
+    });
+    state.canvas.addEventListener("mouseenter", (e) => {
+        if (state.activeTool === "eraser" && eraserCursor) {
+            eraserCursor.style.display = "block";
+        }
+    });
+    
+    // 初期カーソル設定
+    updateCanvasToolClass();
+}
+
+function resizeCanvas() {
+    // YouTube埋め込みの表示サイズにキャンバスサイズを正確にフィットさせる
+    const container = document.querySelector(".player-wrapper");
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    state.canvas.width = rect.width;
+    state.canvas.height = rect.height;
+    
+    // 再描画
+    renderAnnotationsOnCanvas();
+}
+
+// 描画開始
+function startDrawing(e) {
+    if (state.player && state.player.getPlayerState() === YT.PlayerState.PLAYING) {
+        // 動画再生中は描画させず、一時停止する
+        state.player.pauseVideo();
+        return;
+    }
+
+    state.isDrawing = true;
+    const rect = state.canvas.getBoundingClientRect();
+    state.startX = e.clientX - rect.left;
+    state.startY = e.clientY - rect.top;
+
+    state.currentDrawingObj = {
+        tool: state.activeTool,
+        color: state.currentColor,
+        size: state.activeTool === "eraser" ? state.eraserSize : state.brushSize,
+        points: [{ x: state.startX, y: state.startY }]
+    };
+}
+
+// 描画中
+function draw(e) {
+    if (!state.isDrawing || !state.currentDrawingObj) return;
+
+    const rect = state.canvas.getBoundingClientRect();
+    const curX = e.clientX - rect.left;
+    const curY = e.clientY - rect.top;
+
+    // 現在のフレームキャンバスを一度リセットして再描画
+    renderAnnotationsOnCanvas();
+
+    state.ctx.strokeStyle = state.currentColor;
+    state.ctx.fillStyle = state.currentColor;
+    state.ctx.lineWidth = state.brushSize;
+    state.ctx.lineCap = "round";
+    state.ctx.lineJoin = "round";
+
+    if (state.activeTool === "pen") {
+        state.currentDrawingObj.points.push({ x: curX, y: curY });
+        drawPenPath(state.currentDrawingObj.points);
+    } else if (state.activeTool === "eraser") {
+        state.currentDrawingObj.points.push({ x: curX, y: curY });
+        state.ctx.globalCompositeOperation = "destination-out";
+        state.ctx.strokeStyle = "rgba(0,0,0,1)";
+        state.ctx.lineWidth = state.eraserSize * 3; // 消しゴムサイズに合わせて消す
+        drawPenPath(state.currentDrawingObj.points);
+        state.ctx.globalCompositeOperation = "source-over";
+    } else if (state.activeTool === "arrow") {
+        drawArrow(state.startX, state.startY, curX, curY);
+    } else if (state.activeTool === "rect") {
+        state.ctx.beginPath();
+        state.ctx.rect(state.startX, state.startY, curX - state.startX, curY - state.startY);
+        state.ctx.stroke();
+    } else if (state.activeTool === "circle") {
+        const radius = Math.sqrt(Math.pow(curX - state.startX, 2) + Math.pow(curY - state.startY, 2));
+        state.ctx.beginPath();
+        state.ctx.arc(state.startX, state.startY, radius, 0, 2 * Math.PI);
+        state.ctx.stroke();
+    }
+}
+
+// 描画終了
+function stopDrawing(e) {
+    if (!state.isDrawing || !state.currentDrawingObj) return;
+    state.isDrawing = false;
+
+    const rect = state.canvas.getBoundingClientRect();
+    const endX = e.clientX - rect.left;
+    const endY = e.clientY - rect.top;
+
+    if (state.activeTool === "text") {
+        const text = prompt("アノテーションテキストを入力してください:");
+        if (text) {
+            state.currentDrawingObj.text = text;
+            state.currentDrawingObj.points = [{ x: state.startX, y: state.startY }];
+            saveCurrentAnnotation();
+        }
+    } else {
+        // 矢印や図形の場合、終点をpointsに追加して保存
+        if (state.activeTool !== "pen") {
+            state.currentDrawingObj.points.push({ x: endX, y: endY });
+        }
+        
+        // 最小限のドラッグ距離を担保 (誤クリック排除)
+        const pathLength = state.currentDrawingObj.points.length;
+        if ((state.activeTool === "pen" || state.activeTool === "eraser") && pathLength < 2) {
+            state.currentDrawingObj = null;
+            return;
+        }
+
+        saveCurrentAnnotation();
+    }
+}
+
+// アノテーションの保存
+function saveCurrentAnnotation() {
+    if (!state.currentDrawingObj) return;
+
+    const id = "ann_" + Date.now();
+    // 描画データをCanvasに対する相対比率(0〜1)に正規化して保存（異なる画面サイズでも正しく描画できるようにするため）
+    const normPoints = state.currentDrawingObj.points.map(p => ({
+        x: p.x / state.canvas.width,
+        y: p.y / state.canvas.height
+    }));
+
+    const annotation = {
+        id: id,
+        time: state.playbackTime,
+        tool: state.currentDrawingObj.tool,
+        color: state.currentDrawingObj.color,
+        size: state.currentDrawingObj.tool === "eraser" ? state.currentDrawingObj.size * 3 : state.currentDrawingObj.size,
+        points: normPoints,
+        text: state.currentDrawingObj.text || "",
+        user: state.username
+    };
+
+    saveData("annotations", id, annotation);
+    state.currentDrawingObj = null;
+}
+
+// キャンバス上へのアノテーションの全レンダリング
+function renderAnnotationsOnCanvas() {
+    if (!state.ctx) return;
+    state.ctx.clearRect(0, 0, state.canvas.width, state.canvas.height);
+
+    // 再生中かつアノテーション表示条件
+    // アノテーション打刻時間から前後1.5秒以内のアノテーションを描画する
+    const visibleAnnotations = state.annotations.filter(ann => {
+        return Math.abs(state.playbackTime - ann.time) <= 1.5;
+    });
+
+    visibleAnnotations.forEach(ann => {
+        if (ann.tool === "eraser") {
+            state.ctx.globalCompositeOperation = "destination-out";
+            state.ctx.strokeStyle = "rgba(0,0,0,1)";
+        } else {
+            state.ctx.globalCompositeOperation = "source-over";
+            state.ctx.strokeStyle = ann.color;
+            state.ctx.fillStyle = ann.color;
+        }
+        state.ctx.lineWidth = ann.size;
+        state.ctx.lineCap = "round";
+        state.ctx.lineJoin = "round";
+
+        // 比率から実際ピクセル座標に変換
+        const pxPoints = ann.points.map(p => ({
+            x: p.x * state.canvas.width,
+            y: p.y * state.canvas.height
+        }));
+
+        if (ann.tool === "pen" || ann.tool === "eraser") {
+            drawPenPath(pxPoints);
+        } else if (ann.tool === "arrow") {
+            if (pxPoints.length >= 2) {
+                drawArrow(pxPoints[0].x, pxPoints[0].y, pxPoints[1].x, pxPoints[1].y);
+            }
+        } else if (ann.tool === "rect") {
+            if (pxPoints.length >= 2) {
+                state.ctx.beginPath();
+                state.ctx.rect(pxPoints[0].x, pxPoints[0].y, pxPoints[1].x - pxPoints[0].x, pxPoints[1].y - pxPoints[0].y);
+                state.ctx.stroke();
+            }
+        } else if (ann.tool === "circle") {
+            if (pxPoints.length >= 2) {
+                const radius = Math.sqrt(Math.pow(pxPoints[1].x - pxPoints[0].x, 2) + Math.pow(pxPoints[1].y - pxPoints[0].y, 2));
+                state.ctx.beginPath();
+                state.ctx.arc(pxPoints[0].x, pxPoints[0].y, radius, 0, 2 * Math.PI);
+                state.ctx.stroke();
+            }
+        } else if (ann.tool === "text") {
+            if (pxPoints.length >= 1) {
+                state.ctx.font = `${Math.max(14, ann.size * 3.5)}px Noto Sans JP, sans-serif`;
+                // テキストの背景を描く
+                const textWidth = state.ctx.measureText(ann.text).width;
+                state.ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
+                state.ctx.fillRect(pxPoints[0].x - 5, pxPoints[0].y - 20, textWidth + 10, 26);
+                
+                state.ctx.fillStyle = ann.color;
+                state.ctx.fillText(ann.text, pxPoints[0].x, pxPoints[0].y);
+            }
+        }
+
+        // 元に戻す
+        if (ann.tool === "eraser") {
+            state.ctx.globalCompositeOperation = "source-over";
+        }
+    });
+}
+
+// ペンパスの描画
+function drawPenPath(points) {
+    if (points.length < 2) return;
+    state.ctx.beginPath();
+    state.ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) {
+        state.ctx.lineTo(points[i].x, points[i].y);
+    }
+    state.ctx.stroke();
+}
+
+// 矢印の描画
+function drawArrow(fromx, fromy, tox, toy) {
+    const headlen = state.brushSize * 3; // 矢印の頭の長さ
+    const dx = tox - fromx;
+    const dy = toy - fromy;
+    const angle = Math.atan2(dy, dx);
+
+    state.ctx.beginPath();
+    state.ctx.moveTo(fromx, fromy);
+    state.ctx.lineTo(tox, toy);
+    state.ctx.stroke();
+
+    state.ctx.beginPath();
+    state.ctx.moveTo(tox, toy);
+    state.ctx.lineTo(tox - headlen * Math.cos(angle - Math.PI / 6), toy - headlen * Math.sin(angle - Math.PI / 6));
+    state.ctx.lineTo(tox - headlen * Math.cos(angle + Math.PI / 6), toy - headlen * Math.sin(angle + Math.PI / 6));
+    state.ctx.closePath();
+    state.ctx.fill();
+}
+
+// ----------------------------------------------------------------------------
+// 8. プレー分類タグ付け機能
+// ----------------------------------------------------------------------------
+const defaultQuickTags = ["得点", "失点", "シュート", "パス成功", "ミス", "ファウル", "タイムアウト", "チャンス"];
+
+function renderTagsList() {
+    // クイック打刻タグボタン
+    dom.quickTagsContainer.innerHTML = "";
+    defaultQuickTags.forEach(tagName => {
+        const btn = document.createElement("button");
+        btn.className = "tag-btn-item";
+        btn.textContent = tagName;
+        btn.addEventListener("click", () => triggerTagStamp(tagName));
+        dom.quickTagsContainer.appendChild(btn);
+    });
+
+    // 打刻履歴
+    dom.tagHistoryList.innerHTML = "";
+    if (state.tags.length === 0) {
+        dom.tagHistoryList.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 20px; font-size:12px;">タグが打刻されていません。</div>`;
+        return;
+    }
+
+    state.tags.forEach(tag => {
+        const card = document.createElement("div");
+        card.className = "tag-record-card";
+        card.innerHTML = `
+            <div class="tag-record-header">
+                <span class="tag-record-title">${tag.name}</span>
+                <span class="tag-record-time" data-time="${tag.time}">
+                    <i class="fa-solid fa-play"></i> ${formatTime(tag.time)}
+                </span>
+            </div>
+            <div class="tag-record-body">
+                <input type="text" class="tag-record-comment" value="${tag.comment || ""}" placeholder="メモ・分析コメントを入力...">
+                <span style="font-size: 10px; color:var(--text-muted)">by ${tag.user || "ゲスト"}</span>
+                <button class="tag-delete-btn" title="タグ削除"><i class="fa-solid fa-trash-can"></i></button>
+            </div>
+        `;
+
+        // イベント設定
+        card.querySelector(".tag-record-time").addEventListener("click", () => {
+            seekVideoTo(tag.time);
+        });
+
+        const commentInput = card.querySelector(".tag-record-comment");
+        commentInput.addEventListener("change", (e) => {
+            saveData("tags", tag.id, {
+                ...tag,
+                comment: e.target.value
+            });
+        });
+
+        card.querySelector(".tag-delete-btn").addEventListener("click", () => {
+            if (confirm(`タグ「${tag.name}」を削除しますか？`)) {
+                deleteData("tags", tag.id);
+            }
+        });
+
+        dom.tagHistoryList.appendChild(card);
+    });
+}
+
+function triggerTagStamp(tagName) {
+    // プレイヤー未準備でもタグ打刻を許可する（時間は現在の playbackTime、未再生時は 0）
+    
+    const id = "tag_" + Date.now();
+    const newTag = {
+        id: id,
+        time: state.playbackTime,
+        name: tagName,
+        comment: "",
+        user: state.username
+    };
+
+    saveData("tags", id, newTag);
+}
+
+// ----------------------------------------------------------------------------
+// 9. チャット・コメントディスカッション機能
+// ----------------------------------------------------------------------------
+function renderCommentsList() {
+    dom.chatMessages.innerHTML = "";
+    
+    if (state.comments.length === 0) {
+        dom.chatMessages.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 20px; font-size:12px;">コメントがありません。タイムタグ付きのメッセージでディスカッションを始めましょう！</div>`;
+        return;
+    }
+
+    state.comments.forEach(msg => {
+        const isMine = msg.user === state.username;
+        const bubble = document.createElement("div");
+        bubble.className = `chat-message-bubble ${isMine ? "mine" : ""}`;
+        
+        let timeBadgeHtml = "";
+        if (msg.attachTime !== undefined && msg.attachTime !== null) {
+            timeBadgeHtml = `<span class="chat-msg-time-badge" data-time="${msg.attachTime}"><i class="fa-solid fa-clock"></i> ${formatTime(msg.attachTime)}</span>`;
+        }
+
+        bubble.innerHTML = `
+            <div class="chat-msg-meta">
+                <strong>${msg.user}</strong>
+                ${timeBadgeHtml}
+            </div>
+            <div class="chat-msg-content">${escapeHTML(msg.content)}</div>
+        `;
+
+        if (msg.attachTime !== undefined && msg.attachTime !== null) {
+            bubble.querySelector(".chat-msg-time-badge").addEventListener("click", () => {
+                seekVideoTo(msg.attachTime);
+            });
+        }
+
+        dom.chatMessages.appendChild(bubble);
+    });
+
+    // スクロールを最下部に
+    dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
+}
+
+function sendChatMessage() {
+    const text = dom.chatMessageInput.value.trim();
+    if (!text) return;
+
+    const id = "msg_" + Date.now();
+    const payload = {
+        id: id,
+        content: text,
+        user: state.username,
+        timestamp: new Date().toISOString()
+    };
+
+    if (dom.commentAttachTime.checked && state.playerReady) {
+        payload.attachTime = state.playbackTime;
+    }
+
+    saveData("comments", id, payload);
+    dom.chatMessageInput.value = "";
+}
+
+function escapeHTML(str) {
+    return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+    );
+}
+
+// ----------------------------------------------------------------------------
+// 10. タイムラインマーカー表示
+// ----------------------------------------------------------------------------
+function generateTimelineTicks() {
+    dom.timelineTicks.innerHTML = "";
+    if (state.duration <= 0) return;
+    
+    // 5〜10個の目盛りを打つ
+    const tickInterval = Math.max(5, Math.ceil(state.duration / 10));
+    for (let t = 0; t <= state.duration; t += tickInterval) {
+        const percent = (t / state.duration) * 100;
+        const tick = document.createElement("span");
+        tick.style.left = `${percent}%`;
+        tick.style.position = "absolute";
+        tick.style.transform = "translateX(-50%)";
+        tick.textContent = formatTime(t);
+        dom.timelineTicks.appendChild(tick);
+    }
+}
+
+function updateTimelineMarkers() {
+    dom.timelineMarkers.innerHTML = "";
+    if (state.duration <= 0) return;
+
+    // タグマーカー
+    state.tags.forEach(tag => {
+        const percent = (tag.time / state.duration) * 100;
+        const marker = document.createElement("div");
+        marker.className = "timeline-marker type-tag";
+        marker.style.left = `${percent}%`;
+        marker.title = `${tag.name}: ${formatTime(tag.time)}`;
+        marker.addEventListener("click", () => seekVideoTo(tag.time));
+        dom.timelineMarkers.appendChild(marker);
+    });
+
+    // アノテーションマーカー (重複時間は集約)
+    const annTimes = [...new Set(state.annotations.map(ann => Math.floor(ann.time)))];
+    annTimes.forEach(time => {
+        const percent = (time / state.duration) * 100;
+        const marker = document.createElement("div");
+        marker.className = "timeline-marker type-annotation";
+        marker.style.left = `${percent}%`;
+        marker.title = `描き込み: ${formatTime(time)}`;
+        marker.addEventListener("click", () => seekVideoTo(time));
+        dom.timelineMarkers.appendChild(marker);
+    });
+}
+
+function seekVideoTo(time) {
+    if (state.playerReady && state.player) {
+        state.player.seekTo(time, true);
+        if (state.player.getPlayerState() !== YT.PlayerState.PLAYING) {
+            // シーク後に一時停止状態なら描き込みを即座に表示
+            state.playbackTime = time;
+            renderAnnotationsOnCanvas();
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// 11. 作戦盤 (Tactics Board)
+// ----------------------------------------------------------------------------
+function initTacticsBoard() {
+    renderTacticsCourtSVG();
+    initTacticsPiecesPool();
+    resizeTacticsCanvas();
+    renderTacticsBoard();
+}
+
+function resizeTacticsCanvas() {
+    const wrapper = dom.courtWrapper;
+    if (!wrapper) return;
+    const rect = wrapper.getBoundingClientRect();
+    dom.tacticsCanvas.width = rect.width;
+    dom.tacticsCanvas.height = rect.height;
+    renderTacticsBoard();
+}
+
+// 各コートのSVGを生成して埋め込む
+function renderTacticsCourtSVG() {
+    // ハンドボールコート専用に高精細SVGを生成
+    const svgContent = `
+        <svg viewBox="0 0 100 54" width="100%" height="100%">
+            <!-- 外枠・背景 -->
+            <rect width="100" height="54" fill="#0c121f" rx="6" />
+            <rect x="4" y="4" width="92" height="46" fill="#152238" rx="2" />
+            
+            <!-- ゴールエリア（6m）の塗りつぶし -->
+            <path d="M 4 9.75 A 13.8 13.8 0 0 1 17.8 23.55 L 17.8 30.45 A 13.8 13.8 0 0 1 4 44.25 Z" fill="#1c2f4e" />
+            <path d="M 96 9.75 A 13.8 13.8 0 0 0 82.2 23.55 L 82.2 30.45 A 13.8 13.8 0 0 0 96 44.25 Z" fill="#1c2f4e" />
+            
+            <!-- コート境界線 -->
+            <rect x="4" y="4" width="92" height="46" fill="none" stroke="#ffffff" stroke-width="0.8" />
+            
+            <!-- センターライン & センターサークル -->
+            <line x1="50" y1="4" x2="50" y2="50" stroke="#ffffff" stroke-width="0.8" />
+            <circle cx="50" cy="27" r="3.45" fill="none" stroke="#ffffff" stroke-width="0.8" />
+            <circle cx="50" cy="27" r="0.8" fill="#ffffff" />
+            
+            <!-- ゴールエリアライン（6m線） -->
+            <path d="M 4 9.75 A 13.8 13.8 0 0 1 17.8 23.55 L 17.8 30.45 A 13.8 13.8 0 0 1 4 44.25" fill="none" stroke="#ffffff" stroke-width="0.8" />
+            <path d="M 96 9.75 A 13.8 13.8 0 0 0 82.2 23.55 L 82.2 30.45 A 13.8 13.8 0 0 0 96 44.25" fill="none" stroke="#ffffff" stroke-width="0.8" />
+            
+            <!-- フリースローライン（9m線 - 破線） -->
+            <path d="M 4 2.85 A 20.7 20.7 0 0 1 24.7 23.55 L 24.7 30.45 A 20.7 20.7 0 0 1 4 51.15" fill="none" stroke="#ffa502" stroke-width="0.8" stroke-dasharray="2,1.5" />
+            <path d="M 96 2.85 A 20.7 20.7 0 0 0 75.3 23.55 L 75.3 30.45 A 20.7 20.7 0 0 0 96 51.15" fill="none" stroke="#ffa502" stroke-width="0.8" stroke-dasharray="2,1.5" />
+            
+            <!-- 7mライン（ペナルティライン） -->
+            <line x1="20.1" y1="25.85" x2="20.1" y2="28.15" stroke="#ffffff" stroke-width="1.2" />
+            <line x1="79.9" y1="25.85" x2="79.9" y2="28.15" stroke="#ffffff" stroke-width="1.2" />
+            
+            <!-- 4mライン（GK制限ライン） -->
+            <line x1="13.2" y1="26.3" x2="13.2" y2="27.7" stroke="#ffffff" stroke-width="1.0" />
+            <line x1="86.8" y1="26.3" x2="86.8" y2="27.7" stroke="#ffffff" stroke-width="1.0" />
+            
+            <!-- ゴールポスト（枠 - 黒塗りつぶし） -->
+            <rect x="1.5" y="23.55" width="2.5" height="6.9" fill="#000000" stroke="#ffffff" stroke-width="0.8" />
+            <rect x="96" y="23.55" width="2.5" height="6.9" fill="#000000" stroke="#ffffff" stroke-width="0.8" />
+            
+            <!-- 交代線（サブスティテューションライン） -->
+            <line x1="39.65" y1="3.5" x2="39.65" y2="4.5" stroke="#ffffff" stroke-width="0.8" />
+            <line x1="60.35" y1="3.5" x2="60.35" y2="4.5" stroke="#ffffff" stroke-width="0.8" />
+            <line x1="39.65" y1="49.5" x2="39.65" y2="50.5" stroke="#ffffff" stroke-width="0.8" />
+            <line x1="60.35" y1="49.5" x2="60.35" y2="50.5" stroke="#ffffff" stroke-width="0.8" />
+        </svg>
+    `;
+    dom.courtSvgContainer.innerHTML = svgContent;
+}
+
+// 駒生成プール
+function initTacticsPiecesPool() {
+    dom.poolTeamA.innerHTML = "";
+    dom.poolTeamB.innerHTML = "";
+    
+    // チームA
+    for (let i = 1; i <= 11; i++) {
+        const piece = document.createElement("div");
+        piece.className = "draggable-piece team-a";
+        piece.dataset.team = "team-a";
+        piece.dataset.number = i;
+        piece.draggable = true;
+        piece.textContent = i;
+        dom.poolTeamA.appendChild(piece);
+    }
+    
+    // チームB
+    for (let i = 1; i <= 11; i++) {
+        const piece = document.createElement("div");
+        piece.className = "draggable-piece team-b";
+        piece.dataset.team = "team-b";
+        piece.dataset.number = i;
+        piece.draggable = true;
+        piece.textContent = i;
+        dom.poolTeamB.appendChild(piece);
+    }
+}
+
+// ドラッグ＆ドロップ登録 (HTML5 Drag and Drop API)
+function initDragAndDrop() {
+    const poolContainer = document.querySelector(".piece-generator-section");
+    const dropZone = dom.courtWrapper;
+    const tacticsCanvas = dom.tacticsCanvas;
+    const piecesOverlay = dom.piecesOverlay;
+
+    // プールからのドラッグ開始
+    poolContainer.addEventListener("dragstart", (e) => {
+        const piece = e.target.closest(".draggable-piece");
+        if (piece) {
+            state.isDraggingPiece = true; // ドラッグ中フラグON
+            e.dataTransfer.setData("text/plain", JSON.stringify({
+                source: "pool",
+                team: piece.dataset.team,
+                number: piece.dataset.number || ""
+            }));
+            e.dataTransfer.effectAllowed = "copyMove";
+        }
+    });
+
+    // プールからのドラッグ終了（dragend）
+    poolContainer.addEventListener("dragend", () => {
+        state.isDraggingPiece = false;
+        if (state.pendingTacticsRender) {
+            state.pendingTacticsRender = false;
+            renderTacticsBoard();
+        }
+    });
+
+    // ドロップ可能領域へのドラッグ進入（親のドロップ領域のみでイベントを受信）
+    const handleDragOver = (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+    };
+
+    dropZone.addEventListener("dragover", handleDragOver);
+
+    // ドロップ処理
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // イベントのバブリングを防止して二重登録による複数駒の生成を防ぐ
+        const rect = dropZone.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / rect.width; // 0〜1で正規化
+        const y = (e.clientY - rect.top) / rect.height;
+
+        try {
+            const data = JSON.parse(e.dataTransfer.getData("text/plain"));
+            
+            if (data.source === "pool") {
+                // 新規駒追加
+                const newPiece = {
+                    id: "p_" + Date.now(),
+                    team: data.team,
+                    number: data.number,
+                    x: x,
+                    y: y
+                };
+                state.tacticsPieces.push(newPiece);
+                saveTacticsData();
+            } else if (data.source === "court") {
+                // 既存駒の移動
+                const pieceIndex = state.tacticsPieces.findIndex(p => p.id === data.id);
+                if (pieceIndex !== -1) {
+                    state.tacticsPieces[pieceIndex].x = x;
+                    state.tacticsPieces[pieceIndex].y = y;
+                    saveTacticsData();
+                }
+            }
+        } catch (err) {
+            console.error("Drop error", err);
+        }
+    };
+
+    dropZone.addEventListener("drop", handleDrop);
+}
+
+// 作戦盤データの保存
+function saveTacticsData() {
+    const payload = {
+        pieces: state.tacticsPieces,
+        drawings: state.tacticsDrawings
+    };
+    saveData("tactics", "board", payload);
+    // 自分自身の変更なので、ドラッグセッションの完了を待ってから再描画する
+    setTimeout(() => {
+        if (!state.isDraggingPiece) {
+            renderTacticsBoard();
+        } else {
+            state.pendingTacticsRender = true;
+        }
+    }, 50);
+}
+
+// コート上の駒および手書き線のレンダリング
+function renderTacticsBoard() {
+    // 1. 駒の描画更新
+    dom.piecesOverlay.innerHTML = "";
+    state.tacticsPieces.forEach(piece => {
+        const el = document.createElement("div");
+        el.className = `court-piece ${piece.team}`;
+        el.style.left = `${piece.x * 100}%`;
+        el.style.top = `${piece.y * 100}%`;
+        el.setAttribute("draggable", "true"); // draggable属性を確実に設定
+        
+        if (piece.team === "ball") {
+            el.innerHTML = `<i class="fa-solid fa-volleyball"></i>`;
+        } else {
+            el.textContent = piece.number;
+        }
+
+        // ドラッグ開始（既存駒の移動用）
+        el.addEventListener("dragstart", (e) => {
+            state.isDraggingPiece = true; // ドラッグ中フラグON
+            e.dataTransfer.setData("text/plain", JSON.stringify({
+                source: "court",
+                id: piece.id
+            }));
+            e.dataTransfer.effectAllowed = "copyMove";
+            // ドラッグ開始直後に透明度を下げる
+            setTimeout(() => el.style.opacity = "0.5", 0);
+        });
+
+        el.addEventListener("dragend", () => {
+            el.style.opacity = "1";
+            state.isDraggingPiece = false; // ドラッグ中フラグOFF
+            // 保留されていた再描画要求があれば実行
+            if (state.pendingTacticsRender) {
+                state.pendingTacticsRender = false;
+                renderTacticsBoard();
+            }
+        });
+
+        // 削除ボタン
+        const delBtn = document.createElement("div");
+        delBtn.className = "delete-piece-badge";
+        delBtn.innerHTML = "&times;";
+        delBtn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            state.tacticsPieces = state.tacticsPieces.filter(p => p.id !== piece.id);
+            saveTacticsData();
+        });
+        el.appendChild(delBtn);
+
+        dom.piecesOverlay.appendChild(el);
+    });
+
+    // 2. 作戦用手書き線の描画更新
+    if (!state.tacticsCtx) return;
+    state.tacticsCtx.clearRect(0, 0, dom.tacticsCanvas.width, dom.tacticsCanvas.height);
+    
+    state.tacticsDrawings.forEach(drawing => {
+        if (drawing.tool === "eraser") {
+            state.tacticsCtx.globalCompositeOperation = "destination-out";
+            state.tacticsCtx.strokeStyle = "rgba(0,0,0,1)";
+            state.tacticsCtx.lineWidth = 24; // 消しゴムは 24
+        } else {
+            state.tacticsCtx.globalCompositeOperation = "source-over";
+            state.tacticsCtx.strokeStyle = drawing.color;
+            state.tacticsCtx.lineWidth = 4; // ペンは 4
+        }
+        state.tacticsCtx.lineCap = "round";
+        state.tacticsCtx.lineJoin = "round";
+
+        const pxPoints = drawing.points.map(p => ({
+            x: p.x * dom.tacticsCanvas.width,
+            y: p.y * dom.tacticsCanvas.height
+        }));
+
+        if (pxPoints.length < 2) return;
+        state.tacticsCtx.beginPath();
+        state.tacticsCtx.moveTo(pxPoints[0].x, pxPoints[0].y);
+        for (let i = 1; i < pxPoints.length; i++) {
+            state.tacticsCtx.lineTo(pxPoints[i].x, pxPoints[i].y);
+        }
+        state.tacticsCtx.stroke();
+
+        if (drawing.tool === "eraser") {
+            state.tacticsCtx.globalCompositeOperation = "source-over";
+        }
+    });
+}
+
+// 作戦盤キャンバスのカーソルクラスを更新する関数
+function updateTacticsCanvasToolClass() {
+    if (!state.tacticsCanvas) return;
+    state.tacticsCanvas.className.split(" ").forEach(cls => {
+        if (cls.startsWith("ttool-")) {
+            state.tacticsCanvas.classList.remove(cls);
+        }
+    });
+    state.tacticsCanvas.classList.add(`ttool-${state.activeTacticsTool}`);
+    
+    // ツール切り替え時に消しゴム以外のときはプレビュー円を消す
+    const tacticsEraserCursor = document.getElementById("tactics-eraser-cursor");
+    if (tacticsEraserCursor && state.activeTacticsTool !== "eraser") {
+        tacticsEraserCursor.style.display = "none";
+    }
+}
+
+// 作戦盤での手書き機能
+function initTacticsCanvas() {
+    dom.tacticsCanvas.addEventListener("mousedown", startTacticsDraw);
+    dom.tacticsCanvas.addEventListener("mousemove", drawTacticsLine);
+    dom.tacticsCanvas.addEventListener("mouseup", stopTacticsDraw);
+    dom.tacticsCanvas.addEventListener("mouseleave", stopTacticsDraw);
+    
+    // 消しゴム用のカスタム円カーソル表示制御（作戦盤用は24px固定）
+    const tacticsEraserCursor = document.getElementById("tactics-eraser-cursor");
+    dom.tacticsCanvas.addEventListener("mousemove", (e) => {
+        if (state.activeTacticsTool === "eraser" && tacticsEraserCursor) {
+            const rect = dom.tacticsCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const size = 24;
+            tacticsEraserCursor.style.width = `${size}px`;
+            tacticsEraserCursor.style.height = `${size}px`;
+            tacticsEraserCursor.style.left = `${x}px`;
+            tacticsEraserCursor.style.top = `${y}px`;
+            tacticsEraserCursor.style.display = "block";
+        } else if (tacticsEraserCursor) {
+            tacticsEraserCursor.style.display = "none";
+        }
+    });
+    dom.tacticsCanvas.addEventListener("mouseleave", () => {
+        if (tacticsEraserCursor) tacticsEraserCursor.style.display = "none";
+    });
+    dom.tacticsCanvas.addEventListener("mouseenter", (e) => {
+        if (state.activeTacticsTool === "eraser" && tacticsEraserCursor) {
+            tacticsEraserCursor.style.display = "block";
+        }
+    });
+    
+    // 初期カーソル設定
+    updateTacticsCanvasToolClass();
+}
+
+function startTacticsDraw(e) {
+    state.isTacticsDrawing = true;
+    const rect = dom.tacticsCanvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    state.currentDrawingObj = {
+        tool: state.activeTacticsTool,
+        color: state.currentTacticsColor,
+        points: [{ x, y }]
+    };
+}
+
+function drawTacticsLine(e) {
+    if (!state.isTacticsDrawing || !state.currentDrawingObj) return;
+
+    const rect = dom.tacticsCanvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
+
+    state.currentDrawingObj.points.push({ x, y });
+    
+    // 一時プレビュー描画
+    if (state.activeTacticsTool === "eraser") {
+        state.tacticsCtx.globalCompositeOperation = "destination-out";
+        state.tacticsCtx.strokeStyle = "rgba(0,0,0,1)";
+        state.tacticsCtx.lineWidth = 24; // 消しゴムは 24
+    } else {
+        state.tacticsCtx.globalCompositeOperation = "source-over";
+        state.tacticsCtx.strokeStyle = state.currentDrawingObj.color;
+        state.tacticsCtx.lineWidth = 4; // ペンは 4
+    }
+    state.tacticsCtx.lineCap = "round";
+    state.tacticsCtx.lineJoin = "round";
+    
+    const lastIdx = state.currentDrawingObj.points.length - 1;
+    const p1 = state.currentDrawingObj.points[lastIdx - 1];
+    const p2 = state.currentDrawingObj.points[lastIdx];
+
+    state.tacticsCtx.beginPath();
+    state.tacticsCtx.moveTo(p1.x * dom.tacticsCanvas.width, p1.y * dom.tacticsCanvas.height);
+    state.tacticsCtx.lineTo(p2.x * dom.tacticsCanvas.width, p2.y * dom.tacticsCanvas.height);
+    state.tacticsCtx.stroke();
+    
+    if (state.activeTacticsTool === "eraser") {
+        state.tacticsCtx.globalCompositeOperation = "source-over";
+    }
+}
+
+function stopTacticsDraw() {
+    if (!state.isTacticsDrawing || !state.currentDrawingObj) return;
+    state.isTacticsDrawing = false;
+
+    if (state.currentDrawingObj.points.length >= 2) {
+        state.tacticsDrawings.push(state.currentDrawingObj);
+        saveTacticsData();
+    }
+    state.currentDrawingObj = null;
+}
+
+// ----------------------------------------------------------------------------
+// 12. アプリ全体のイベント制御
+// ----------------------------------------------------------------------------
+function setupEventListeners() {
+    // 1. 動画の読み込みボタン
+    if (dom.loadVideoBtn) {
+        dom.loadVideoBtn.addEventListener("click", () => {
+            const url = dom.youtubeUrl.value.trim();
+            if (!url) {
+                showNotification("YouTube URL または 動画IDを入力してください。", "warning");
+                return;
+            }
+            const videoId = extractVideoId(url);
+            if (!videoId || videoId.length !== 11) {
+                showNotification("有効なYouTube URLまたは動画ID（11桁）を入力してください。", "warning");
+                return;
+            }
+            state.videoId = videoId;
+            showNotification("動画を読み込んでいます...", "info", 2000);
+            loadYouTubeVideo(videoId);
+            loadAllData();
+        });
+    }
+
+    // キーボードショートカット
+    window.addEventListener("keydown", (e) => {
+        // テキスト入力中はショートカットを無視
+        if (document.activeElement.tagName === "INPUT" || document.activeElement.tagName === "TEXTAREA") {
+            return;
+        }
+
+        if (e.code === "Space") {
+            e.preventDefault();
+            togglePlayPause();
+        } else if (e.code === "ArrowLeft") {
+            e.preventDefault();
+            seekVideoDelta(-1);
+        } else if (e.code === "ArrowRight") {
+            e.preventDefault();
+            seekVideoDelta(1);
+        }
+    });
+
+    // 再生・一時停止
+    if (dom.playPauseBtn) dom.playPauseBtn.addEventListener("click", togglePlayPause);
+    if (dom.prevFrameBtn) dom.prevFrameBtn.addEventListener("click", () => seekVideoDelta(-1));
+    if (dom.nextFrameBtn) dom.nextFrameBtn.addEventListener("click", () => seekVideoDelta(1));
+
+    // 再生速度
+    if (dom.speedSelect) {
+        dom.speedSelect.addEventListener("change", (e) => {
+            if (state.playerReady && state.player) {
+                state.player.setPlaybackRate(parseFloat(e.target.value));
+            }
+        });
+    }
+
+    // シークバー操作
+    if (dom.timelineSlider) {
+        dom.timelineSlider.addEventListener("input", (e) => {
+            if (state.playerReady && state.player) {
+                const time = parseFloat(e.target.value);
+                state.player.seekTo(time, true);
+            }
+        });
+    }
+
+    // アノテーションツール切り替え
+    if (dom.toolBtns) {
+        dom.toolBtns.forEach(btn => {
+            if (btn) {
+                btn.addEventListener("click", () => {
+                    dom.toolBtns.forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    state.activeTool = btn.getAttribute("data-tool");
+                    
+                    // ペンなどの選択状況に応じてCanvasのポインターイベント制御
+                    if (state.activeTool && state.canvas) {
+                        state.canvas.classList.add("drawing-active");
+                    }
+                    
+                    // ツール切り替えに伴うスライダー値の復元
+                    if (dom.brushSize) {
+                        if (state.activeTool === "eraser") {
+                            dom.brushSize.value = state.eraserSize;
+                            if (dom.brushSizeVal) {
+                                dom.brushSizeVal.textContent = (state.eraserSize * 3) + "px";
+                            }
+                        } else {
+                            dom.brushSize.value = state.brushSize;
+                            if (dom.brushSizeVal) {
+                                dom.brushSizeVal.textContent = state.brushSize + "px";
+                            }
+                        }
+                    }
+                    
+                    // カーソルの更新
+                    updateCanvasToolClass();
+                });
+            }
+        });
+    }
+
+    // カラーパレット (映像分析用)
+    if (dom.colorDots) {
+        dom.colorDots.forEach(dot => {
+            if (dot) {
+                dot.addEventListener("click", () => {
+                    dom.colorDots.forEach(d => d.classList.remove("active"));
+                    dot.classList.add("active");
+                    state.currentColor = dot.getAttribute("data-color");
+                });
+            }
+        });
+    }
+
+    // ブラシ太さ
+    if (dom.brushSize) {
+        dom.brushSize.addEventListener("input", (e) => {
+            const val = parseInt(e.target.value);
+            if (state.activeTool === "eraser") {
+                state.eraserSize = val;
+                if (dom.brushSizeVal) {
+                    dom.brushSizeVal.textContent = (state.eraserSize * 3) + "px"; // 消しゴムサイズは3倍で表示
+                }
+                // マウスストーカー円のサイズも即座に更新する
+                const eraserCursor = document.getElementById("eraser-cursor");
+                if (eraserCursor) {
+                    eraserCursor.style.width = `${state.eraserSize * 3}px`;
+                    eraserCursor.style.height = `${state.eraserSize * 3}px`;
+                    
+                    // スライダー操作中にキャンバス中央に一時的にプレビューを表示する
+                    const rect = state.canvas.getBoundingClientRect();
+                    const x = rect.width / 2;
+                    const y = rect.height / 2;
+                    eraserCursor.style.left = `${x}px`;
+                    eraserCursor.style.top = `${y}px`;
+                    eraserCursor.style.display = "block";
+                    
+                    // 操作停止後1秒で非表示にする
+                    clearTimeout(state.eraserPreviewTimeout);
+                    state.eraserPreviewTimeout = setTimeout(() => {
+                        eraserCursor.style.display = "none";
+                    }, 1000);
+                }
+            } else {
+                state.brushSize = val;
+                if (dom.brushSizeVal) {
+                    dom.brushSizeVal.textContent = state.brushSize + "px";
+                }
+            }
+        });
+    }
+
+    // アノテーションUndo (現在のタイムスタンプのアノテーションを1件削除)
+    if (dom.undoBtn) {
+        dom.undoBtn.addEventListener("click", () => {
+            // 現在の動画時間に近いアノテーションを見つけて最新のものを1件消す
+            const timeFiltered = state.annotations
+                .filter(ann => Math.abs(state.playbackTime - ann.time) <= 1.5)
+                .sort((a, b) => b.id.localeCompare(a.id)); // ID（タイムスタンプ）降順
+                
+            if (timeFiltered.length > 0) {
+                deleteData("annotations", timeFiltered[0].id);
+            }
+        });
+    }
+
+    // 全消去 (現在のタイムスタンプのアノテーションを全て削除)
+    if (dom.clearBtn) {
+        dom.clearBtn.addEventListener("click", () => {
+            const timeFiltered = state.annotations.filter(ann => Math.abs(state.playbackTime - ann.time) <= 1.5);
+            if (timeFiltered.length > 0) {
+                if (confirm("このシーンの描き込みを全て削除しますか？")) {
+                    timeFiltered.forEach(ann => {
+                        deleteData("annotations", ann.id);
+                    });
+                }
+            }
+        });
+    }
+
+    // カスタムタグ追加
+    if (dom.addTagBtn) {
+        dom.addTagBtn.addEventListener("click", () => {
+            if (dom.newTagName) {
+                const tagName = dom.newTagName.value.trim();
+                if (!tagName) return;
+                triggerTagStamp(tagName);
+                dom.newTagName.value = "";
+            }
+        });
+    }
+
+    if (dom.newTagName) {
+        dom.newTagName.addEventListener("keypress", (e) => {
+            if (e.key === "Enter" && dom.addTagBtn) {
+                dom.addTagBtn.click();
+            }
+        });
+    }
+
+    // チャット送信
+    if (dom.sendChatBtn) dom.sendChatBtn.addEventListener("click", sendChatMessage);
+    if (dom.chatMessageInput) {
+        dom.chatMessageInput.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                sendChatMessage();
+            }
+        });
+    }
+
+    if (dom.clearTacticsDrawings) {
+        dom.clearTacticsDrawings.addEventListener("click", () => {
+            if (confirm("作戦盤の手書きラインをクリアしますか？")) {
+                state.tacticsDrawings = [];
+                saveTacticsData();
+            }
+        });
+    }
+
+    if (dom.resetTacticsPieces) {
+        dom.resetTacticsPieces.addEventListener("click", () => {
+            if (confirm("作戦盤の駒を初期状態（すべてプールへ）に戻しますか？")) {
+                state.tacticsPieces = [];
+                saveTacticsData();
+            }
+        });
+    }
+
+    // 作戦盤ツール切り替え
+    if (dom.ttoolBtns) {
+        dom.ttoolBtns.forEach(btn => {
+            if (btn) {
+                btn.addEventListener("click", () => {
+                    dom.ttoolBtns.forEach(b => b.classList.remove("active"));
+                    btn.classList.add("active");
+                    state.activeTacticsTool = btn.getAttribute("data-ttool");
+                    // カーソルの更新
+                    updateTacticsCanvasToolClass();
+                });
+            }
+        });
+    }
+
+    // 作戦盤カラー
+    if (dom.tcolorDots) {
+        dom.tcolorDots.forEach(dot => {
+            if (dot) {
+                dot.addEventListener("click", () => {
+                    dom.tcolorDots.forEach(d => d.classList.remove("active"));
+                    dot.classList.add("active");
+                    state.currentTacticsColor = dot.getAttribute("data-color");
+                });
+            }
+        });
+    }
+
+    // 設定モーダル制御
+    if (dom.openSettingsBtn) dom.openSettingsBtn.addEventListener("click", () => {
+        if (dom.settingsModal) dom.settingsModal.classList.add("active");
+    });
+    if (dom.closeSettingsBtn) dom.closeSettingsBtn.addEventListener("click", () => {
+        if (dom.settingsModal) dom.settingsModal.classList.remove("active");
+    });
+    
+    // 設定保存
+    if (dom.saveSettingsBtn) {
+        dom.saveSettingsBtn.addEventListener("click", () => {
+            const username = (dom.settingsUsername ? dom.settingsUsername.value.trim() : "") || "ゲストユーザー";
+            localStorage.setItem("splyza_username", username);
+            state.username = username;
+
+            // Firebase設定
+            const config = {
+                apiKey: dom.fbApiKey ? dom.fbApiKey.value.trim() : "",
+                authDomain: dom.fbAuthDomain ? dom.fbAuthDomain.value.trim() : "",
+                projectId: dom.fbProjectId ? dom.fbProjectId.value.trim() : "",
+                appId: dom.fbAppId ? dom.fbAppId.value.trim() : ""
+            };
+
+            if (config.apiKey && config.projectId) {
+                localStorage.setItem("splyza_firebase_config", JSON.stringify(config));
+                state.firebaseConfig = config;
+                initFirebase(config);
+                if (state.isFirebaseEnabled) {
+                    showNotification("Firebase同期設定を保存し、接続しました！", "success");
+                } else {
+                    showNotification("Firebase設定に誤りがあるか、接続できませんでした。ローカル保存モードで起動します。", "warning");
+                }
+            } else {
+                localStorage.removeItem("splyza_firebase_config");
+                state.firebaseConfig = null;
+                state.isFirebaseEnabled = false;
+                state.db = null;
+                showNotification("設定を保存しました（ローカル保存モード）。", "info");
+            }
+
+            updateUIForFirebaseStatus();
+            if (dom.settingsModal) dom.settingsModal.classList.remove("active");
+            
+            // データを再読み込み
+            loadAllData();
+        });
+    }
+
+    // 設定リセット
+    if (dom.clearSettingsBtn) {
+        dom.clearSettingsBtn.addEventListener("click", () => {
+            if (confirm("設定を完全に初期化しますか？")) {
+                localStorage.removeItem("splyza_username");
+                localStorage.removeItem("splyza_firebase_config");
+                location.reload();
+            }
+        });
+    }
+}
+
+function togglePlayPause() {
+    if (!state.playerReady || !state.player) return;
+    
+    const playerState = state.player.getPlayerState();
+    if (playerState === YT.PlayerState.PLAYING) {
+        state.player.pauseVideo();
+    } else {
+        state.player.playVideo();
+    }
+}
+
+function seekVideoDelta(seconds) {
+    if (!state.playerReady || !state.player) return;
+    const curr = state.player.getCurrentTime();
+    state.player.seekTo(Math.max(0, Math.min(state.duration, curr + seconds)), true);
+}

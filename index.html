@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPLYZA Teams Clone - 映像分析＆作戦盤ツール</title>
+    <!-- Outfit Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Stylesheet -->
+    <link rel="stylesheet" href="styles.css?v=1.6.0">
+    <!-- Firebase SDK (Compat version for easier HTML script import) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- ヘッダー -->
+        <header class="app-header">
+            <div class="header-logo">
+                <i class="fa-solid fa-chart-line logo-icon"></i>
+                <h1>ANALYST<span>Teams</span></h1>
+            </div>
+            
+            <div class="header-video-input">
+                <div class="input-group">
+                    <i class="fa-brands fa-youtube input-icon"></i>
+                    <input type="text" id="youtube-url" placeholder="YouTube動画URL または 動画IDを入力...">
+                    <button id="load-video-btn" class="btn btn-primary">動画読込</button>
+                </div>
+            </div>
+
+            <div class="header-tabs">
+                <button class="tab-btn active" data-tab="analysis-mode">
+                    <i class="fa-solid fa-video"></i> 映像分析
+                </button>
+                <button class="tab-btn" data-tab="tactics-mode">
+                    <i class="fa-solid fa-clipboard-question"></i> 作戦盤
+                </button>
+            </div>
+
+            <div class="header-actions">
+                <span id="user-display-name" class="user-badge"><i class="fa-solid fa-user"></i> ゲストユーザー</span>
+                <button id="open-settings-btn" class="btn btn-icon" title="設定"><i class="fa-solid fa-gear"></i></button>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ領域 -->
+        <main class="app-main">
+            <!-- 1. 映像分析モード -->
+            <section id="analysis-mode" class="tab-content active">
+                <div class="analysis-grid">
+                    <!-- 左：プレイヤー＆アノテーション -->
+                    <div class="player-column">
+                        <div class="player-wrapper">
+                            <!-- YouTube埋め込み領域 -->
+                            <div id="yt-player-container">
+                                <div id="yt-player"></div>
+                            </div>
+                            <!-- アノテーションCanvas -->
+                            <canvas id="annotation-canvas"></canvas>
+                            <div id="eraser-cursor" class="custom-eraser-cursor"></div>
+                        </div>
+
+                        <!-- プレイヤーコントロール -->
+                        <div class="player-controls">
+                            <!-- 再生制御 -->
+                            <div class="control-group playback-controls">
+                                <button id="play-pause-btn" class="btn btn-circle" title="再生/一時停止 (Space)">
+                                    <i class="fa-solid fa-play"></i>
+                                </button>
+                                <button id="prev-frame-btn" class="btn btn-circle btn-secondary" title="1秒戻る (←)">
+                                    <i class="fa-solid fa-backward-step"></i>
+                                </button>
+                                <button id="next-frame-btn" class="btn btn-circle btn-secondary" title="1秒進む (→)">
+                                    <i class="fa-solid fa-forward-step"></i>
+                                </button>
+                                <div class="time-display">
+                                    <span id="current-time">00:00</span> / <span id="total-time">00:00</span>
+                                </div>
+                                <select id="speed-select" class="select-input" title="再生速度">
+                                    <option value="0.25">0.25x</option>
+                                    <option value="0.5">0.5x</option>
+                                    <option value="1" selected>1.0x (標準)</option>
+                                    <option value="1.5">1.5x</option>
+                                    <option value="2">2.0x</option>
+                                </select>
+                            </div>
+
+                            <!-- アノテーションツール -->
+                            <div class="control-group annotation-controls">
+                                <span class="group-title">描き込みツール:</span>
+                                <button class="tool-btn active" data-tool="pen" title="フリーハンドペン"><i class="fa-solid fa-pen"></i></button>
+                                <button class="tool-btn" data-tool="eraser" title="消しゴム"><i class="fa-solid fa-eraser"></i></button>
+                                <button class="tool-btn" data-tool="arrow" title="矢印"><i class="fa-solid fa-arrow-right"></i></button>
+                                <button class="tool-btn" data-tool="rect" title="四角"><i class="fa-regular fa-square"></i></button>
+                                <button class="tool-btn" data-tool="circle" title="円"><i class="fa-regular fa-circle"></i></button>
+                                <button class="tool-btn" data-tool="text" title="テキスト"><i class="fa-solid fa-font"></i></button>
+                                
+                                <div class="color-picker-container">
+                                    <button class="color-dot active" data-color="#ff4757" style="background-color: #ff4757;"></button>
+                                    <button class="color-dot" data-color="#1e90ff" style="background-color: #1e90ff;"></button>
+                                    <button class="color-dot" data-color="#2ed573" style="background-color: #2ed573;"></button>
+                                    <button class="color-dot" data-color="#ffa502" style="background-color: #ffa502;"></button>
+                                    <button class="color-dot" data-color="#ffffff" style="background-color: #ffffff;"></button>
+                                </div>
+
+                                <div class="size-picker">
+                                    <input type="range" id="brush-size" min="2" max="15" value="4" title="線の太さ">
+                                    <span id="brush-size-val">4px</span>
+                                </div>
+
+                                <button id="undo-btn" class="btn btn-secondary btn-icon" title="元に戻す (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                                <button id="clear-btn" class="btn btn-danger btn-icon" title="全消去"><i class="fa-solid fa-trash-can"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- タイムラインバー -->
+                        <div class="timeline-container">
+                            <div class="timeline-track-wrapper">
+                                <div class="timeline-ticks" id="timeline-ticks"></div>
+                                <input type="range" id="timeline-slider" min="0" max="100" value="0" step="0.1">
+                                <div class="timeline-markers" id="timeline-markers"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 右：分析パネル（タグ＆チャット） -->
+                    <div class="sidebar-column">
+                        <div class="sidebar-tabs">
+                            <button class="sidebar-tab-btn active" data-sidebar-tab="tag-panel">
+                                <i class="fa-solid fa-tags"></i> プレー分類タグ
+                            </button>
+                            <button class="sidebar-tab-btn" data-sidebar-tab="comment-panel">
+                                <i class="fa-solid fa-comments"></i> タイムタグ・チャット
+                            </button>
+                        </div>
+
+                        <!-- タグパネル -->
+                        <div id="tag-panel" class="sidebar-tab-content active">
+                            <div class="tag-section">
+                                <h3>クイック打刻タグ</h3>
+                                <div class="tag-quick-buttons" id="quick-tags-container">
+                                    <!-- 動的に生成 -->
+                                </div>
+                                <div class="add-custom-tag">
+                                    <input type="text" id="new-tag-name" placeholder="新しいタグ名（例: シュート）">
+                                    <button id="add-tag-btn" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> 追加</button>
+                                </div>
+                            </div>
+
+                            <div class="tag-history-section">
+                                <h3>打刻済みプレー履歴</h3>
+                                <div class="tag-history-list" id="tag-history-list">
+                                    <!-- 動的に生成 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- チャット・コメントパネル -->
+                        <div id="comment-panel" class="sidebar-tab-content">
+                            <div class="chat-messages-container" id="chat-messages">
+                                <!-- 動的に生成 -->
+                            </div>
+                            <div class="chat-input-area">
+                                <div class="comment-time-info">
+                                    <input type="checkbox" id="comment-attach-time" checked>
+                                    <label for="comment-attach-time">現在の時間 (<span id="comment-time-stamp">00:00</span>) を添付</label>
+                                </div>
+                                <div class="input-send-group">
+                                    <textarea id="chat-message-input" placeholder="動画の分析コメント、アドバイスを入力... (Enterで送信)"></textarea>
+                                    <button id="send-chat-btn" class="btn btn-primary"><i class="fa-solid fa-paper-plane"></i></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 作戦盤モード -->
+            <section id="tactics-mode" class="tab-content">
+                <div class="tactics-grid">
+                    <!-- 左：コート -->
+                    <div class="court-column">
+                        <div class="court-controls-top">
+                            <span class="court-title-badge"><i class="fa-solid fa-circle-info"></i> ハンドボールコート</span>
+                            <button id="clear-tactics-drawings" class="btn btn-secondary"><i class="fa-solid fa-eraser"></i> ライン消去</button>
+                            <button id="reset-tactics-pieces" class="btn btn-danger"><i class="fa-solid fa-arrows-rotate"></i> 駒配置リセット</button>
+                        </div>
+                        <div class="court-wrapper" id="court-wrapper">
+                            <!-- SVGコート (JSでSVG要素を切り替える) -->
+                            <div id="court-svg-container"></div>
+                            <!-- 作戦盤用アノテーションCanvas -->
+                            <canvas id="tactics-canvas"></canvas>
+                            <!-- 駒を配置するレイヤー -->
+                            <div id="pieces-overlay"></div>
+                            <div id="tactics-eraser-cursor" class="custom-eraser-cursor"></div>
+                        </div>
+                    </div>
+
+                    <!-- 右：作戦盤コントロール -->
+                    <div class="tactics-sidebar">
+                        <h3>タクティクスパーツ</h3>
+                        <p class="panel-desc">駒をコート上にドラッグ＆ドロップして配置・移動します。</p>
+                        
+                        <div class="piece-generator-section">
+                            <h4>チームA (赤)</h4>
+                            <div class="piece-pool" id="pool-team-a">
+                                <!-- JSで1〜11の駒を生成 -->
+                            </div>
+
+                            <h4>チームB (青)</h4>
+                            <div class="piece-pool" id="pool-team-b">
+                                <!-- JSで1〜11の駒を生成 -->
+                            </div>
+
+                            <h4>オブジェクト</h4>
+                            <div class="piece-pool" id="pool-objects">
+                                <div class="draggable-piece ball" data-team="ball" draggable="true">
+                                    <i class="fa-solid fa-volleyball"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tactics-drawing-controls">
+                            <h4>作戦用ペン</h4>
+                            <div class="btn-group">
+                                <button class="ttool-btn active" data-ttool="pen" title="ペン"><i class="fa-solid fa-pen"></i></button>
+                                <button class="ttool-btn" data-ttool="eraser" title="消しゴム"><i class="fa-solid fa-eraser"></i></button>
+                            </div>
+                            <div class="color-picker-container">
+                                <button class="tcolor-dot active" data-color="#ffffff" style="background-color: #ffffff;"></button>
+                                <button class="tcolor-dot" data-color="#ff4757" style="background-color: #ff4757;"></button>
+                                <button class="tcolor-dot" data-color="#ffa502" style="background-color: #ffa502;"></button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 設定モーダル -->
+        <div id="settings-modal" class="modal-overlay">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2><i class="fa-solid fa-gear"></i> システム設定</h2>
+                    <button class="modal-close-btn" id="close-settings-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="settings-section">
+                        <h3>プロフィール</h3>
+                        <div class="form-group">
+                            <label for="settings-username">ユーザー名 (表示名)</label>
+                            <input type="text" id="settings-username" placeholder="ニックネームを入力...">
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>Firebase リアルタイム同期設定</h3>
+                        <p class="section-desc">チームで同時編集やコメント共有を行いたい場合は、ご自身のFirebase構成情報を設定してください。未設定の場合は、ローカルブラウザ（LocalStorage）にデータが保存されます。</p>
+                        
+                        <div class="form-group">
+                            <label for="fb-api-key">API Key</label>
+                            <input type="password" id="fb-api-key" placeholder="AIzaSy...">
+                        </div>
+                        <div class="form-group">
+                            <label for="fb-auth-domain">Auth Domain</label>
+                            <input type="text" id="fb-auth-domain" placeholder="project-id.firebaseapp.com">
+                        </div>
+                        <div class="form-group">
+                            <label for="fb-project-id">Project ID</label>
+                            <input type="text" id="fb-project-id" placeholder="project-id">
+                        </div>
+                        <div class="form-group">
+                            <label for="fb-app-id">App ID</label>
+                            <input type="text" id="fb-app-id" placeholder="1:1234567890:web:abcdef...">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button id="save-settings-btn" class="btn btn-primary">設定を保存</button>
+                    <button id="clear-settings-btn" class="btn btn-secondary">リセット</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script -->
+    <script src="app.js?v=1.6.0"></script>
+    <!-- YouTube Player API (Asynchronous Load) -->
+    <script>
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+    </script>
+</body>
+</html>
