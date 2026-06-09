@@ -124,7 +124,9 @@ const state = {
     eraserPreviewTimeout: null,
     
     // 動画の履歴管理
-    videoHistory: []
+    videoHistory: [],
+    tagFilterPlayer: "all",
+    selectedQuickTags: []
 };
 
 // ----------------------------------------------------------------------------
@@ -254,6 +256,104 @@ function updateVideoTitleFromPlayer() {
     }
 }
 
+// 現在登録されている背番号を取得し、サジェストリストおよびフィルター用の選択肢を自動更新する
+function updatePlayerNumberSuggestions() {
+    const datalist = document.getElementById("player-number-suggestions");
+    const badgesContainer = document.getElementById("player-quick-badges");
+    if (!datalist) return;
+    
+    // 現在のタグデータから登録されている背番号を一意に抽出（半角数字のみであることを前提）
+    const numbers = [...new Set(state.tags.map(t => t.playerNumber).filter(Boolean))];
+    // 数値の昇順にソート
+    numbers.sort((a, b) => parseInt(a) - parseInt(b));
+    
+    // 1. datalistサジェストの更新
+    datalist.innerHTML = "";
+    numbers.forEach(num => {
+        const opt = document.createElement("option");
+        opt.value = num;
+        opt.textContent = `#${num}`;
+        datalist.appendChild(opt);
+    });
+
+    // 2. クイック選択用バッジリストの更新 (これまで入力された番号すべてが常に一覧で並びタップ選択できる)
+    if (badgesContainer) {
+        badgesContainer.innerHTML = "";
+        if (numbers.length > 0) {
+            const label = document.createElement("span");
+            label.style.fontSize = "10px";
+            label.style.color = "var(--text-secondary)";
+            label.style.fontWeight = "600";
+            label.style.marginRight = "4px";
+            label.textContent = "履歴:";
+            badgesContainer.appendChild(label);
+        }
+        
+        numbers.forEach(num => {
+            const btn = document.createElement("button");
+            btn.className = "player-quick-badge-btn";
+            btn.style.cssText = `
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid var(--border-color);
+                color: var(--text-primary);
+                border-radius: 12px;
+                padding: 2px 8px;
+                font-size: 11px;
+                cursor: pointer;
+                font-weight: 600;
+                transition: var(--transition-smooth);
+            `;
+            btn.textContent = `#${num}`;
+            btn.addEventListener("click", (e) => {
+                e.preventDefault();
+                if (dom.stampPlayerNumber) {
+                    dom.stampPlayerNumber.value = num;
+                }
+            });
+            // ホバー時の輝き効果
+            btn.addEventListener("mouseenter", () => {
+                btn.style.background = "var(--accent-blue)";
+                btn.style.color = "#000";
+                btn.style.borderColor = "var(--accent-blue)";
+            });
+            btn.addEventListener("mouseleave", () => {
+                btn.style.background = "rgba(255, 255, 255, 0.05)";
+                btn.style.color = "var(--text-primary)";
+                btn.style.borderColor = "var(--border-color)";
+            });
+            badgesContainer.appendChild(btn);
+        });
+    }
+    
+    updateFilterPlayerSelect(numbers);
+}
+
+// フィルター用のセレクトボックスの選択肢を動的に更新
+function updateFilterPlayerSelect(numbers) {
+    if (!dom.tagFilterPlayer) return;
+    
+    const currentValue = state.tagFilterPlayer; // 現在の選択を保護
+    
+    dom.tagFilterPlayer.innerHTML = `
+        <option value="all">すべての選手</option>
+        <option value="none">選手指定なし</option>
+    `;
+    
+    numbers.forEach(num => {
+        const opt = document.createElement("option");
+        opt.value = num;
+        opt.textContent = `#${num}`;
+        dom.tagFilterPlayer.appendChild(opt);
+    });
+    
+    // 選択状態を復元
+    dom.tagFilterPlayer.value = currentValue;
+    if (!dom.tagFilterPlayer.value) {
+        dom.tagFilterPlayer.value = "all";
+        state.tagFilterPlayer = "all";
+    }
+}
+
 
 // DOM参照の保持
 let dom = {};
@@ -318,7 +418,10 @@ function initDOMReferences() {
         fbAppId: document.getElementById("fb-app-id"),
         saveSettingsBtn: document.getElementById("save-settings-btn"),
         clearSettingsBtn: document.getElementById("clear-settings-btn"),
-        userDisplayName: document.getElementById("user-display-name")
+        userDisplayName: document.getElementById("user-display-name"),
+        stampPlayerNumber: document.getElementById("stamp-player-number"),
+        tagFilterPlayer: document.getElementById("tag-filter-player"),
+        submitTagsBtn: document.getElementById("submit-tags-btn")
     };
     
     state.canvas = dom.canvas;
@@ -552,6 +655,7 @@ function handleIncomingData(col, items) {
     } else if (col === "tags") {
         // 再生時間の昇順でソート
         state.tags = items.sort((a, b) => a.time - b.time);
+        updatePlayerNumberSuggestions(); // 選手履歴サジェストを更新
         renderTagsList();
         updateTimelineMarkers();
     } else if (col === "comments") {
@@ -1170,32 +1274,79 @@ function renderTagsList() {
     defaultQuickTags.forEach(tagName => {
         const btn = document.createElement("button");
         btn.className = "tag-btn-item";
+        if (state.selectedQuickTags.includes(tagName)) {
+            btn.classList.add("selected");
+        }
         btn.textContent = tagName;
-        btn.addEventListener("click", () => triggerTagStamp(tagName));
+        btn.addEventListener("click", () => {
+            const idx = state.selectedQuickTags.indexOf(tagName);
+            if (idx === -1) {
+                state.selectedQuickTags.push(tagName);
+                btn.classList.add("selected");
+            } else {
+                state.selectedQuickTags.splice(idx, 1);
+                btn.classList.remove("selected");
+            }
+        });
         dom.quickTagsContainer.appendChild(btn);
     });
 
+    // 選手による絞り込みの適用
+    let filteredTags = state.tags;
+    if (state.tagFilterPlayer === "none") {
+        filteredTags = state.tags.filter(t => !t.playerNumber);
+    } else if (state.tagFilterPlayer !== "all") {
+        filteredTags = state.tags.filter(t => t.playerNumber === state.tagFilterPlayer);
+    }
+
     // 打刻履歴
     dom.tagHistoryList.innerHTML = "";
-    if (state.tags.length === 0) {
-        dom.tagHistoryList.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 20px; font-size:12px;">タグが打刻されていません。</div>`;
+    if (filteredTags.length === 0) {
+        dom.tagHistoryList.innerHTML = `<div style="color:var(--text-muted); text-align:center; padding: 20px; font-size:12px;">該当するタグがありません。</div>`;
         return;
     }
 
-    state.tags.forEach(tag => {
+    filteredTags.forEach(tag => {
         const card = document.createElement("div");
         card.className = "tag-record-card";
+        
+        let playerBadgeHtml = "";
+        if (tag.playerNumber) {
+            playerBadgeHtml = `<span class="tag-record-player-badge" style="background: rgba(0, 210, 255, 0.15); color: var(--accent-blue); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 6px;">#${tag.playerNumber}</span>`;
+        }
+
+        // タグ名のバッジ群を生成
+        let tagsHtml = "";
+        if (tag.names && Array.isArray(tag.names)) {
+            tag.names.forEach(n => {
+                tagsHtml += `<span class="tag-record-title" style="margin-right: 4px;">${n}</span>`;
+            });
+        } else {
+            // 互換性フォールバック（カンマ区切りの文字列を分割して表示）
+            const parts = (tag.name || "").split(", ");
+            parts.forEach(n => {
+                if (n.trim()) {
+                    tagsHtml += `<span class="tag-record-title" style="margin-right: 4px;">${n}</span>`;
+                }
+            });
+        }
+
         card.innerHTML = `
-            <div class="tag-record-header">
-                <span class="tag-record-title">${tag.name}</span>
-                <span class="tag-record-time" data-time="${tag.time}">
+            <div class="tag-record-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <div style="display:flex; align-items:center; flex-wrap:wrap; gap:4px;">
+                    ${tagsHtml}
+                    ${playerBadgeHtml}
+                </div>
+                <span class="tag-record-time" data-time="${tag.time}" style="font-size: 11px; color: var(--accent-cyan); font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 4px;">
                     <i class="fa-solid fa-play"></i> ${formatTime(tag.time)}
                 </span>
             </div>
-            <div class="tag-record-body">
-                <input type="text" class="tag-record-comment" value="${tag.comment || ""}" placeholder="メモ・分析コメントを入力...">
+            <div class="tag-record-body" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                <span style="font-size: 11px; color: var(--text-secondary); font-weight: bold;">#</span>
+                <input type="text" class="tag-record-player-input" value="${tag.playerNumber || ""}" placeholder="なし" style="width: 45px; background: var(--bg-primary); border: 1px solid var(--border-color); color: var(--text-primary); font-size: 11px; border-radius: 4px; padding: 2px 4px; outline: none; text-align: center; height: 24px;" title="背番号を変更">
+                <input type="text" class="tag-record-comment" value="${tag.comment || ""}" placeholder="メモ・分析コメントを入力..." style="flex:1; min-width:120px; background: transparent; border: none; outline: none; font-size: 12px; color: var(--text-primary);">
                 <span style="font-size: 10px; color:var(--text-muted)">by ${tag.user || "ゲスト"}</span>
-                <button class="tag-delete-btn" title="タグ削除"><i class="fa-solid fa-trash-can"></i></button>
+                <button class="tag-delete-btn" title="タグ削除" style="background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px;"><i class="fa-solid fa-trash-can"></i></button>
             </div>
         `;
 
@@ -1204,6 +1355,19 @@ function renderTagsList() {
             seekVideoTo(tag.time);
         });
 
+        // 背番号変更 (半角数字に強制制限)
+        const playerInput = card.querySelector(".tag-record-player-input");
+        playerInput.addEventListener("input", (e) => {
+            e.target.value = e.target.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 65248)).replace(/[^0-9]/g, "");
+        });
+        playerInput.addEventListener("change", (e) => {
+            saveData("tags", tag.id, {
+                ...tag,
+                playerNumber: e.target.value
+            });
+        });
+
+        // コメント変更
         const commentInput = card.querySelector(".tag-record-comment");
         commentInput.addEventListener("change", (e) => {
             saveData("tags", tag.id, {
@@ -1212,6 +1376,7 @@ function renderTagsList() {
             });
         });
 
+        // 削除
         card.querySelector(".tag-delete-btn").addEventListener("click", () => {
             if (confirm(`タグ「${tag.name}」を削除しますか？`)) {
                 deleteData("tags", tag.id);
@@ -1224,12 +1389,15 @@ function renderTagsList() {
 
 function triggerTagStamp(tagName) {
     // プレイヤー未準備でもタグ打刻を許可する（時間は現在の playbackTime、未再生時は 0）
+    const playerNum = dom.stampPlayerNumber ? dom.stampPlayerNumber.value : "";
     
     const id = "tag_" + Date.now();
     const newTag = {
         id: id,
         time: state.playbackTime,
         name: tagName,
+        names: [tagName],
+        playerNumber: playerNum, // 背番号を追加
         comment: "",
         user: state.username
     };
@@ -2030,6 +2198,54 @@ function setupEventListeners() {
                 triggerTagStamp(tagName);
                 dom.newTagName.value = "";
             }
+        });
+    }
+
+    // 選択したタグの一括打刻
+    if (dom.submitTagsBtn) {
+        dom.submitTagsBtn.addEventListener("click", () => {
+            if (!state.selectedQuickTags || state.selectedQuickTags.length === 0) {
+                showNotification("打刻するタグを1つ以上選択してください。", "warning");
+                return;
+            }
+
+            const playerNum = dom.stampPlayerNumber ? dom.stampPlayerNumber.value : "";
+            const time = state.playbackTime;
+            const user = state.username;
+            const id = "tag_" + Date.now();
+
+            const newTag = {
+                id: id,
+                time: time,
+                name: state.selectedQuickTags.join(", "),
+                names: [...state.selectedQuickTags],
+                playerNumber: playerNum,
+                comment: "",
+                user: user
+            };
+
+            saveData("tags", id, newTag);
+
+            showNotification(`${state.selectedQuickTags.length}件のタグを一括打刻しました。`, "success");
+
+            // 選択状態をリセットしてUIを再描画
+            state.selectedQuickTags = [];
+            renderTagsList();
+        });
+    }
+
+    // 選手タグフィルター変更
+    if (dom.tagFilterPlayer) {
+        dom.tagFilterPlayer.addEventListener("change", (e) => {
+            state.tagFilterPlayer = e.target.value;
+            renderTagsList();
+        });
+    }
+
+    // 背番号入力時のバリデーション (全角数字➔半角数字に変換、数字以外をカット)
+    if (dom.stampPlayerNumber) {
+        dom.stampPlayerNumber.addEventListener("input", (e) => {
+            e.target.value = e.target.value.replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 65248)).replace(/[^0-9]/g, "");
         });
     }
 

@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.3.0">
+    <link rel="stylesheet" href="styles.css?v=2.7.0">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -21,8 +21,8 @@
         <!-- ヘッダー -->
         <header class="app-header">
             <div class="header-logo">
-                <i class="fa-solid fa-chart-line logo-icon"></i>
-                <h1>ANALYST<span>Teams</span></h1>
+                <i class="fa-solid fa-circle-play logo-icon"></i>
+                <h1>SPLYZA<span>-ist</span></h1>
             </div>
             
             <div class="header-video-input" style="display: flex; gap: 10px; align-items: center; max-width: 700px;">
@@ -146,9 +146,24 @@
                         <div id="tag-panel" class="sidebar-tab-content active">
                             <div class="tag-section">
                                 <h3>クイック打刻タグ</h3>
+                                <!-- 選手（背番号）入力・サジェストを追加 -->
+                                <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; background: rgba(255,255,255,0.02); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                                    <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
+                                        <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-shirt"></i> 選手指定:</span>
+                                        <input type="text" id="stamp-player-number" list="player-number-suggestions" placeholder="背番号を入力 (例: 2)" class="select-input" style="padding: 4px 8px; font-size: 11px; flex: 1; height: 26px; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); background: var(--bg-surface);">
+                                        <datalist id="player-number-suggestions">
+                                            <!-- 動的に生成 -->
+                                        </datalist>
+                                    </div>
+                                    <!-- 過去に入力されたすべての背番号をタップ選択できるバッジエリア -->
+                                    <div id="player-quick-badges" style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center;"></div>
+                                </div>
                                 <div class="tag-quick-buttons" id="quick-tags-container">
                                     <!-- 動的に生成 -->
                                 </div>
+                                <button id="submit-tags-btn" class="btn btn-primary" style="width: 100%; margin-top: 10px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <i class="fa-solid fa-tag"></i> 選択したタグを打刻
+                                </button>
                                 <div class="add-custom-tag">
                                     <input type="text" id="new-tag-name" placeholder="新しいタグ名（例: シュート）">
                                     <button id="add-tag-btn" class="btn btn-secondary"><i class="fa-solid fa-plus"></i> 追加</button>
@@ -157,6 +172,15 @@
 
                             <div class="tag-history-section">
                                 <h3>打刻済みプレー履歴</h3>
+                                <!-- 選手での絞り込みフィルターを追加 -->
+                                <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;"><i class="fa-solid fa-filter"></i> 選手で絞り込み:</span>
+                                    <select id="tag-filter-player" class="select-input" style="padding: 4px 8px; font-size: 11px; flex: 1; height: 26px; line-height: 1;">
+                                        <option value="all">すべての選手</option>
+                                        <option value="none">選手指定なし</option>
+                                        <!-- JSで動的に追加 -->
+                                    </select>
+                                </div>
                                 <div class="tag-history-list" id="tag-history-list">
                                     <!-- 動的に生成 -->
                                 </div>
@@ -292,7 +316,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.3.0"></script>
+    <script src="app.js?v=2.7.0"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');
