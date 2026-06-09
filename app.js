@@ -282,6 +282,16 @@ function loadSettingsFromStorage() {
     }
     updateUserBadge();
 
+    // 保存された動画情報
+    const savedUrl = localStorage.getItem("splyza_youtube_url");
+    const savedVideoId = localStorage.getItem("splyza_video_id");
+    if (savedUrl && dom.youtubeUrl) {
+        dom.youtubeUrl.value = savedUrl;
+    }
+    if (savedVideoId) {
+        state.videoId = savedVideoId;
+    }
+
     // Firebase構成
     const savedFbConfig = localStorage.getItem("splyza_firebase_config");
     if (savedFbConfig) {
@@ -1655,6 +1665,8 @@ function setupEventListeners() {
                 return;
             }
             state.videoId = videoId;
+            localStorage.setItem("splyza_youtube_url", url);
+            localStorage.setItem("splyza_video_id", videoId);
             showNotification("動画を読み込んでいます...", "info", 2000);
             loadYouTubeVideo(videoId);
             loadAllData();
