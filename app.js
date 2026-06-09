@@ -680,15 +680,18 @@ function retryGetDuration(retries = 10) {
 }
 
 function onPlayerStateChange(event) {
+    const ytContainer = document.getElementById("yt-player-container");
     if (event.data === YT.PlayerState.PLAYING) {
         dom.playPauseBtn.innerHTML = '<i class="fa-solid fa-pause"></i>';
         // 再生中はアノテーション入力を不可（透過）にする
         state.canvas.classList.remove("drawing-active");
+        if (ytContainer) ytContainer.style.pointerEvents = "auto";
     } else {
         dom.playPauseBtn.innerHTML = '<i class="fa-solid fa-play"></i>';
         // 一時停止中はアノテーションツールがアクティブなら入力を有効にする
         if (state.activeTool) {
             state.canvas.classList.add("drawing-active");
+            if (ytContainer) ytContainer.style.pointerEvents = "none"; // iPad等でのタッチ強奪防止
         }
     }
     // 再生状態の変化に伴ってCanvasを再描画
@@ -1618,6 +1621,27 @@ function initTacticsCanvas() {
     
     // ウィンドウリサイズ時にもキャンバスサイズをフィットさせる
     window.addEventListener("resize", resizeTacticsCanvas);
+
+    // iPad等での透過バグ対策：一番上にあるpiecesOverlayのタッチイベントを検知し、駒以外のタッチはCanvasの描画処理へ転送する
+    dom.piecesOverlay.addEventListener("touchstart", (e) => {
+        const isPiece = e.target.closest(".court-piece");
+        if (!isPiece && state.activeTacticsTool) {
+            startTacticsDrawTouch(e);
+        }
+    }, { passive: false });
+
+    dom.piecesOverlay.addEventListener("touchmove", (e) => {
+        const isPiece = e.target.closest(".court-piece");
+        if (!isPiece && state.isTacticsDrawing) {
+            drawTacticsLineTouch(e);
+        }
+    }, { passive: false });
+
+    dom.piecesOverlay.addEventListener("touchend", (e) => {
+        if (state.isTacticsDrawing) {
+            stopTacticsDraw();
+        }
+    });
     
     // 初期カーソル設定
     updateTacticsCanvasToolClass();
@@ -1787,6 +1811,8 @@ function setupEventListeners() {
                     // ペンなどの選択状況に応じてCanvasのポインターイベント制御
                     if (state.activeTool && state.canvas) {
                         state.canvas.classList.add("drawing-active");
+                        const ytContainer = document.getElementById("yt-player-container");
+                        if (ytContainer) ytContainer.style.pointerEvents = "none"; // iPad等でのタッチ強奪防止
                     }
                     
                     // ツール切り替えに伴うスライダー値の復元
