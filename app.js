@@ -749,6 +749,9 @@ function retryGetDuration(retries = 10) {
         dom.timelineSlider.max = state.duration;
         generateTimelineTicks();
         updateTimelineMarkers();
+        
+        // 動画メタデータ取得完了時にタイトル履歴も更新する
+        updateVideoTitleFromPlayer();
     } else if (retries > 0) {
         setTimeout(() => retryGetDuration(retries - 1), 500);
     }
@@ -771,6 +774,9 @@ function onPlayerStateChange(event) {
     }
     // 再生状態の変化に伴ってCanvasを再描画
     renderAnnotationsOnCanvas();
+
+    // 再生ステート変化時（読み込み完了や再生開始時など）にタイトルを更新
+    updateVideoTitleFromPlayer();
 }
 
 function updatePlaybackProgress() {
