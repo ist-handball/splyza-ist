@@ -2088,17 +2088,17 @@ function setupEventListeners() {
             togglePlayPause();
         } else if (e.code === "ArrowLeft") {
             e.preventDefault();
-            seekVideoDelta(-1);
+            seekVideoDelta(-5);
         } else if (e.code === "ArrowRight") {
             e.preventDefault();
-            seekVideoDelta(1);
+            seekVideoDelta(5);
         }
     });
 
     // 再生・一時停止
     if (dom.playPauseBtn) dom.playPauseBtn.addEventListener("click", togglePlayPause);
-    if (dom.prevFrameBtn) dom.prevFrameBtn.addEventListener("click", () => seekVideoDelta(-1));
-    if (dom.nextFrameBtn) dom.nextFrameBtn.addEventListener("click", () => seekVideoDelta(1));
+    if (dom.prevFrameBtn) dom.prevFrameBtn.addEventListener("click", () => seekVideoDelta(-5));
+    if (dom.nextFrameBtn) dom.nextFrameBtn.addEventListener("click", () => seekVideoDelta(5));
 
     // 再生速度
     if (dom.speedSelect) {
