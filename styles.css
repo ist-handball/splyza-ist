@@ -674,6 +674,9 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: var(--transition-smooth);
+    display: inline-flex; /* 削除用×バッジを横並びにするため追加 */
+    align-items: center;
+    gap: 5px;
 }
 
 .tag-btn-item:hover {
@@ -694,6 +697,36 @@ body {
     border-color: var(--accent-cyan);
     transform: scale(1.05);
     box-shadow: 0 0 15px rgba(0, 242, 254, 0.6);
+}
+
+/* カスタムクイックタグの削除バッジ */
+.remove-tag-badge {
+    margin-left: 2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.4);
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    transition: var(--transition-smooth);
+}
+
+.tag-btn-item:hover .remove-tag-badge {
+    color: #000;
+}
+
+.tag-btn-item.selected .remove-tag-badge {
+    color: rgba(0, 0, 0, 0.5);
+}
+
+.remove-tag-badge:hover {
+    background: var(--danger-red);
+    color: #fff !important;
+    transform: scale(1.2);
 }
 
 .add-custom-tag {

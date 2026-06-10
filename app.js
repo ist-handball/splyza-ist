@@ -102,7 +102,7 @@ const state = {
     canvas: null,
     ctx: null,
     isDrawing: false,
-    activeTool: "pen", // 'pen' | 'arrow' | 'rect' | 'circle' | 'text'
+    activeTool: "", // 'pen' | 'arrow' | 'rect' | 'circle' | 'text' (デフォルトはツール未選択の動画閲覧モード)
     currentColor: "#ff4757",
     brushSize: 4,
     eraserSize: 8, // 消しゴム用のサイズ状態を追加
@@ -126,7 +126,8 @@ const state = {
     // 動画の履歴管理
     videoHistory: [],
     tagFilterPlayer: "all",
-    selectedQuickTags: []
+    selectedQuickTags: [],
+    quickTags: ["シュート（成功）", "シュート（枠外）", "シュート（セーブ）", "警告", "退場", "ターンオーバー"]
 };
 
 // ----------------------------------------------------------------------------
@@ -948,14 +949,16 @@ function extractVideoId(url) {
 // キャンバスのカーソルクラスを更新する関数
 function updateCanvasToolClass() {
     if (!state.canvas) return;
-    // 既存の tool-* クラスを削除
+    // 既存 of tool-* クラスを削除
     state.canvas.className.split(" ").forEach(cls => {
         if (cls.startsWith("tool-")) {
             state.canvas.classList.remove(cls);
         }
     });
-    // 新しいツールクラスを追加
-    state.canvas.classList.add(`tool-${state.activeTool}`);
+    // 新しいツールクラスを追加（activeToolが選択されている場合のみ）
+    if (state.activeTool) {
+        state.canvas.classList.add(`tool-${state.activeTool}`);
+    }
     
     // ツール切り替え時に消しゴム以外のときはプレビュー円を消す
     const eraserCursor = document.getElementById("eraser-cursor");
@@ -1271,13 +1274,44 @@ const defaultQuickTags = ["シュート（成功）", "シュート（枠外）"
 function renderTagsList() {
     // クイック打刻タグボタン
     dom.quickTagsContainer.innerHTML = "";
-    defaultQuickTags.forEach(tagName => {
+    state.quickTags.forEach(tagName => {
         const btn = document.createElement("button");
         btn.className = "tag-btn-item";
         if (state.selectedQuickTags.includes(tagName)) {
             btn.classList.add("selected");
         }
-        btn.textContent = tagName;
+
+        // テキスト表示用のspan
+        const textSpan = document.createElement("span");
+        textSpan.textContent = tagName;
+        btn.appendChild(textSpan);
+
+        // デフォルト以外のカスタムタグには削除バッジ（×）を追加
+        const isCustom = !defaultQuickTags.includes(tagName);
+        if (isCustom) {
+            const removeBadge = document.createElement("span");
+            removeBadge.className = "remove-tag-badge";
+            removeBadge.innerHTML = "&times;";
+            removeBadge.title = "この選択肢を削除";
+            
+            removeBadge.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation(); // 親ボタンのクリックトグルイベントを防止
+                
+                if (confirm(`タグの選択肢「${tagName}」をリストから削除しますか？`)) {
+                    // 選択肢リストから削除
+                    state.quickTags = state.quickTags.filter(t => t !== tagName);
+                    // 選択状態からも削除
+                    state.selectedQuickTags = state.selectedQuickTags.filter(t => t !== tagName);
+                    
+                    renderTagsList(); // 再描画
+                    showNotification(`タグ「${tagName}」の選択肢を削除しました。`, "info");
+                }
+            });
+            btn.appendChild(removeBadge);
+        }
+
+        // ボタンクリックイベント (トグル選択)
         btn.addEventListener("click", () => {
             const idx = state.selectedQuickTags.indexOf(tagName);
             if (idx === -1) {
@@ -2090,15 +2124,28 @@ function setupEventListeners() {
         dom.toolBtns.forEach(btn => {
             if (btn) {
                 btn.addEventListener("click", () => {
-                    dom.toolBtns.forEach(b => b.classList.remove("active"));
-                    btn.classList.add("active");
-                    state.activeTool = btn.getAttribute("data-tool");
+                    const clickedTool = btn.getAttribute("data-tool");
+                    const ytContainer = document.getElementById("yt-player-container");
                     
-                    // ペンなどの選択状況に応じてCanvasのポインターイベント制御
-                    if (state.activeTool && state.canvas) {
-                        state.canvas.classList.add("drawing-active");
-                        const ytContainer = document.getElementById("yt-player-container");
-                        if (ytContainer) ytContainer.style.pointerEvents = "none"; // iPad等でのタッチ強奪防止
+                    // すでに選択中のツールを再クリックした場合はトグル解除（閲覧モードに戻る）
+                    if (state.activeTool === clickedTool) {
+                        dom.toolBtns.forEach(b => b.classList.remove("active"));
+                        state.activeTool = "";
+                        
+                        if (state.canvas) {
+                            state.canvas.classList.remove("drawing-active");
+                        }
+                        if (ytContainer) ytContainer.style.pointerEvents = "auto"; // 動画操作を可能に
+                    } else {
+                        // 新規にツールを選択
+                        dom.toolBtns.forEach(b => b.classList.remove("active"));
+                        btn.classList.add("active");
+                        state.activeTool = clickedTool;
+                        
+                        if (state.canvas) {
+                            state.canvas.classList.add("drawing-active");
+                        }
+                        if (ytContainer) ytContainer.style.pointerEvents = "none"; // 動画操作を透過し、描き込み可能に
                     }
                     
                     // ツール切り替えに伴うスライダー値の復元
@@ -2108,7 +2155,7 @@ function setupEventListeners() {
                             if (dom.brushSizeVal) {
                                 dom.brushSizeVal.textContent = (state.eraserSize * 3) + "px";
                             }
-                        } else {
+                        } else if (state.activeTool) {
                             dom.brushSize.value = state.brushSize;
                             if (dom.brushSizeVal) {
                                 dom.brushSizeVal.textContent = state.brushSize + "px";
@@ -2202,14 +2249,26 @@ function setupEventListeners() {
         });
     }
 
-    // カスタムタグ追加
+    // カスタムタグ追加（即時打刻ではなく、クイックタグ選択肢に追加して自動選択状態にする）
     if (dom.addTagBtn) {
         dom.addTagBtn.addEventListener("click", () => {
             if (dom.newTagName) {
                 const tagName = dom.newTagName.value.trim();
                 if (!tagName) return;
-                triggerTagStamp(tagName);
+
+                // 重複していない場合のみ追加
+                if (!state.quickTags.includes(tagName)) {
+                    state.quickTags.push(tagName);
+                }
+                
+                // 自動で選択状態にする
+                if (!state.selectedQuickTags.includes(tagName)) {
+                    state.selectedQuickTags.push(tagName);
+                }
+
                 dom.newTagName.value = "";
+                renderTagsList(); // クイックタグ一覧を再描画
+                showNotification(`タグ「${tagName}」を選択肢に追加し、選択状態にしました。`, "success", 2000);
             }
         });
     }
