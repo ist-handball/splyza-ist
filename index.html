@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.7.0">
+    <link rel="stylesheet" href="styles.css?v=2.10.0">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -147,7 +147,7 @@
                             <div class="tag-section">
                                 <h3>クイック打刻タグ</h3>
                                 <!-- 選手（背番号）入力・サジェストを追加 -->
-                                <div style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; background: rgba(255,255,255,0.02); padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border-color);">
+                                <div style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.02); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color);">
                                     <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
                                         <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-shirt"></i> 選手指定:</span>
                                         <input type="text" id="stamp-player-number" list="player-number-suggestions" placeholder="背番号を入力 (例: 2)" class="select-input" style="padding: 4px 8px; font-size: 11px; flex: 1; height: 26px; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); background: var(--bg-surface);">
@@ -161,7 +161,7 @@
                                 <div class="tag-quick-buttons" id="quick-tags-container">
                                     <!-- 動的に生成 -->
                                 </div>
-                                <button id="submit-tags-btn" class="btn btn-primary" style="width: 100%; margin-top: 10px; margin-bottom: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <button id="submit-tags-btn" class="btn btn-primary" style="width: 100%; margin-top: 6px; margin-bottom: 10px; padding: 6px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px; height: 30px;">
                                     <i class="fa-solid fa-tag"></i> 選択したタグを打刻
                                 </button>
                                 <div class="add-custom-tag">
@@ -316,7 +316,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.7.0"></script>
+    <script src="app.js?v=2.10.0"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');

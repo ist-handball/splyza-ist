@@ -1266,7 +1266,7 @@ function drawArrow(fromx, fromy, tox, toy) {
 // ----------------------------------------------------------------------------
 // 8. プレー分類タグ付け機能
 // ----------------------------------------------------------------------------
-const defaultQuickTags = ["得点", "失点", "シュート", "パス成功", "ミス", "ファウル", "タイムアウト", "チャンス"];
+const defaultQuickTags = ["シュート（成功）", "シュート（枠外）", "シュート（セーブ）", "警告", "退場", "ターンオーバー"];
 
 function renderTagsList() {
     // クイック打刻タグボタン
@@ -1426,12 +1426,18 @@ function renderCommentsList() {
             timeBadgeHtml = `<span class="chat-msg-time-badge" data-time="${msg.attachTime}"><i class="fa-solid fa-clock"></i> ${formatTime(msg.attachTime)}</span>`;
         }
 
+        // 誰のメッセージでも削除ボタンを表示
+        const deleteBtnHtml = `<button class="chat-msg-delete-btn" title="メッセージを削除"><i class="fa-solid fa-trash-can"></i></button>`;
+
         bubble.innerHTML = `
             <div class="chat-msg-meta">
                 <strong>${msg.user}</strong>
                 ${timeBadgeHtml}
             </div>
-            <div class="chat-msg-content">${escapeHTML(msg.content)}</div>
+            <div class="chat-msg-content">
+                ${escapeHTML(msg.content)}
+                ${deleteBtnHtml}
+            </div>
         `;
 
         if (msg.attachTime !== undefined && msg.attachTime !== null) {
@@ -1439,6 +1445,13 @@ function renderCommentsList() {
                 seekVideoTo(msg.attachTime);
             });
         }
+
+        // 誰でも削除可能なイベントリスナーをバインド
+        bubble.querySelector(".chat-msg-delete-btn").addEventListener("click", () => {
+            if (confirm("このメッセージを削除しますか？")) {
+                deleteData("comments", msg.id);
+            }
+        });
 
         dom.chatMessages.appendChild(bubble);
     });
