@@ -2764,6 +2764,24 @@ function setupEventListeners() {
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
 
+    // 画面回転時に擬似フルスクリーンのCanvasサイズを補正
+    function handleOrientationOrResize() {
+        if (dom.playerWrapper && dom.playerWrapper.classList.contains("pseudo-fullscreen")) {
+            // 画面回転後にビューポートサイズが確定するまで少し待つ
+            setTimeout(() => {
+                resizeCanvas();
+            }, 100);
+            setTimeout(() => {
+                resizeCanvas();
+            }, 300);
+            setTimeout(() => {
+                resizeCanvas();
+            }, 600);
+        }
+    }
+    window.addEventListener("orientationchange", handleOrientationOrResize);
+    window.addEventListener("resize", handleOrientationOrResize);
+
     // 動画右下全画面ボタン
     if (dom.videoFullscreenBtnOverlay) {
         dom.videoFullscreenBtnOverlay.addEventListener("click", toggleFullscreen);

@@ -1525,6 +1525,9 @@ body {
     border-radius: 0 !important;
     border: none !important;
     background: #000 !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
 }
 
 .player-wrapper.pseudo-fullscreen #yt-player-container,
@@ -1532,13 +1535,12 @@ body {
     position: absolute !important;
     top: 0 !important;
     left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    margin: auto !important;
     width: 100% !important;
     height: 100% !important;
-    max-width: calc(100vh * 16 / 9) !important;
-    max-height: calc(100vw * 9 / 16) !important;
+    max-width: none !important;
+    max-height: none !important;
+    transform: none !important;
+    margin: 0 !important;
 }
 
 .player-wrapper.pseudo-fullscreen #yt-player-container {
@@ -1555,6 +1557,7 @@ body {
 /* 擬似フルスクリーン時にもフローティングツールバーとトリガーボタンを表示する */
 .player-wrapper.pseudo-fullscreen .fs-trigger-btn {
     display: flex !important;
+    z-index: 100001 !important;
 }
 
 .player-wrapper.pseudo-fullscreen .fullscreen-toolbar.active {
@@ -1562,6 +1565,37 @@ body {
     transform: translate(-50%, 0) !important;
     opacity: 1 !important;
     pointer-events: auto !important;
+    z-index: 100001 !important;
+    max-width: 95vw !important;
+    flex-wrap: wrap !important;
+    justify-content: center !important;
+}
+
+/* 擬似フルスクリーン時の全画面ボタン（右下オーバーレイ） */
+.player-wrapper.pseudo-fullscreen .video-fullscreen-btn-overlay {
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 100001 !important;
+    position: fixed !important;
+    right: 15px !important;
+    bottom: 15px !important;
+}
+
+/* 擬似フルスクリーン時のオーバーレイバッジ拡大（ネイティブフルスクリーンと同様） */
+.player-wrapper.pseudo-fullscreen .overlay-item {
+    font-size: 15px;
+    gap: 8px;
+}
+
+.player-wrapper.pseudo-fullscreen .overlay-badge {
+    font-size: 12px;
+    padding: 3px 10px;
+}
+
+.player-wrapper.pseudo-fullscreen .overlay-comment,
+.player-wrapper.pseudo-fullscreen .overlay-comment-text {
+    font-size: 15px;
+    max-width: 450px;
 }
 
 /* スマホ専用動画ロードパネル（デフォルトは非表示、スマホ表示時のみ有効） */
@@ -1824,6 +1858,38 @@ body {
         border-color: rgba(0, 0, 0, 0.12) !important;
         color: #212529 !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    /* スマホ擬似フルスクリーン時のツールバー調整 */
+    .player-wrapper.pseudo-fullscreen .fullscreen-toolbar.active {
+        top: 10px !important;
+        padding: 4px 8px !important;
+        gap: 6px !important;
+        border-radius: 20px !important;
+    }
+
+    .player-wrapper.pseudo-fullscreen .fullscreen-toolbar .fs-tool-btn,
+    .player-wrapper.pseudo-fullscreen .fullscreen-toolbar .fs-btn {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 12px !important;
+    }
+
+    .player-wrapper.pseudo-fullscreen .fullscreen-toolbar .fs-color-dot {
+        width: 12px !important;
+        height: 12px !important;
+    }
+
+    .player-wrapper.pseudo-fullscreen .fullscreen-toolbar .fs-color-picker {
+        padding: 0 6px !important;
+        gap: 4px !important;
+    }
+
+    /* スマホ擬似フルスクリーン時のトリガーボタン調整 */
+    .player-wrapper.pseudo-fullscreen .fs-trigger-btn {
+        top: 10px !important;
+        width: 36px !important;
+        height: 36px !important;
     }
     
 
