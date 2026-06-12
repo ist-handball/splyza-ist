@@ -1603,8 +1603,8 @@ body {
     display: none;
 }
 
-@media (max-width: 768px) {
-    /* スマートフォン専用：上半分（動画）完全固定 ＆ 下半分（その他の部分）全体スクロールUI */
+@media (max-width: 768px) and (orientation: portrait) {
+    /* スマートフォン縦画面専用：上半分（動画）完全固定 ＆ 下半分（その他の部分）全体スクロールUI */
     body {
         overflow: hidden !important; /* 画面全体のスクロールを禁止 */
         height: 100vh !important;
@@ -1860,7 +1860,7 @@ body {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
 
-    /* スマホ擬似フルスクリーン時のツールバー調整 */
+    /* スマホ縦画面擬似フルスクリーン時のツールバー調整 */
     .player-wrapper.pseudo-fullscreen .fullscreen-toolbar.active {
         top: 10px !important;
         padding: 4px 8px !important;
@@ -1885,7 +1885,7 @@ body {
         gap: 4px !important;
     }
 
-    /* スマホ擬似フルスクリーン時のトリガーボタン調整 */
+    /* スマホ縦画面擬似フルスクリーン時のトリガーボタン調整 */
     .player-wrapper.pseudo-fullscreen .fs-trigger-btn {
         top: 10px !important;
         width: 36px !important;
@@ -1917,6 +1917,259 @@ body {
     .piece-generator-section h4 {
         margin-top: 4px !important;
         margin-bottom: 4px !important;
+    }
+}
+
+/* -------------------------------------------------------------
+   スマホ横画面専用：固定解除 ＆ スクロール可能レイアウト
+   ------------------------------------------------------------- */
+@media (max-width: 960px) and (orientation: landscape) {
+    /* 横画面時はスクロール可能にする */
+    body {
+        overflow: auto !important;
+        height: auto !important;
+    }
+    
+    .app-container {
+        height: auto !important;
+        min-height: 100vh;
+        overflow: auto !important;
+    }
+    
+    /* ヘッダーのコンパクト化 */
+    .app-header {
+        height: 40px !important;
+        padding: 0 10px !important;
+        flex-shrink: 0 !important;
+    }
+    
+    .header-logo h1 {
+        font-size: 14px !important;
+    }
+    .header-logo h1 span {
+        display: none;
+    }
+    
+    .header-video-input {
+        display: none !important;
+    }
+    
+    .user-badge {
+        display: none;
+    }
+    
+    .header-actions {
+        gap: 6px !important;
+    }
+
+    .header-tabs {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    .header-tabs .tab-btn {
+        padding: 5px 8px !important;
+        font-size: 11px !important;
+        gap: 4px !important;
+    }
+    
+    .app-main {
+        height: auto !important;
+        overflow: visible !important;
+    }
+    
+    /* グリッドを縦並びに変更し、スクロール可能にする */
+    .analysis-grid, .tactics-grid {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 6px !important;
+        gap: 6px !important;
+        overflow: visible !important;
+    }
+    
+    /* プレイヤーカラム：固定なし、通常フロー */
+    .player-column, .court-column {
+        position: relative !important;
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        height: auto !important;
+        padding: 4px !important;
+        gap: 4px !important;
+    }
+    
+    .player-wrapper {
+        aspect-ratio: 16 / 9 !important;
+        flex: none !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        border-radius: 8px !important;
+    }
+    
+    .court-wrapper {
+        aspect-ratio: 100 / 54 !important;
+        flex: none !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        border-radius: 8px !important;
+    }
+    
+    /* コントロールのスリム化 */
+    .player-controls {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        padding: 4px 6px !important;
+        gap: 4px !important;
+        border-radius: 6px !important;
+        height: 32px !important;
+    }
+    
+    .playback-controls {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        width: 100% !important;
+        justify-content: space-between !important;
+        gap: 6px !important;
+    }
+
+    .player-controls select.select-input,
+    .player-controls .annotation-controls {
+        display: none !important;
+    }
+    
+    .player-controls .btn-circle {
+        width: 26px !important;
+        height: 26px !important;
+        font-size: 10px !important;
+    }
+    
+    .time-display {
+        font-size: 10px !important;
+        padding: 2px 4px !important;
+        min-width: 55px !important;
+    }
+    
+    /* タイムラインのスリム化 */
+    .timeline-container {
+        padding: 0 6px !important;
+        border-radius: 0 !important;
+        margin: 2px 0 0 0 !important;
+        height: 12px !important;
+        background: transparent !important;
+    }
+    
+    .timeline-track-wrapper {
+        height: 10px !important;
+        padding-top: 0 !important;
+    }
+
+    #timeline-slider {
+        height: 4px !important;
+        margin: 0 !important;
+    }
+
+    .timeline-ticks {
+        display: none !important;
+    }
+    
+    /* スマホ専用動画ロードパネルの有効化 */
+    .mobile-video-input-panel {
+        display: block !important;
+        padding: 8px !important;
+        background: var(--bg-secondary);
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+        margin: 6px !important;
+        box-shadow: var(--card-shadow);
+    }
+    
+    /* サイドバー：通常フロー、スクロール可能 */
+    .sidebar-column {
+        flex: 0 0 auto !important;
+        width: 100% !important;
+        height: auto !important;
+        min-height: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow: visible !important;
+    }
+    
+    .sidebar-tabs {
+        height: 34px !important;
+        margin: 0 6px !important;
+    }
+    .sidebar-tab-btn {
+        padding: 5px 4px !important;
+        font-size: 10px !important;
+        gap: 3px !important;
+    }
+    
+    .sidebar-tab-content {
+        height: auto !important;
+        padding: 6px !important;
+        overflow: visible !important;
+    }
+    
+    /* チャット履歴は独立スクロール維持 */
+    .chat-messages-container {
+        max-height: 250px !important;
+        overflow-y: auto !important;
+    }
+    
+    /* 打刻済みプレー履歴も独立スクロール維持 */
+    .tag-history-list {
+        max-height: 200px !important;
+        overflow-y: auto !important;
+        padding-right: 4px !important;
+    }
+    
+    /* 全画面ボタンの常時表示 */
+    .video-fullscreen-btn-overlay {
+        opacity: 1 !important;
+        visibility: visible !important;
+        width: 36px !important;
+        height: 36px !important;
+        right: 8px !important;
+        bottom: 8px !important;
+        background: rgba(18, 19, 22, 0.8) !important;
+        border-color: rgba(255, 255, 255, 0.25) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4) !important;
+    }
+    
+    body.light-theme .video-fullscreen-btn-overlay {
+        background: rgba(255, 255, 255, 0.9) !important;
+        border-color: rgba(0, 0, 0, 0.12) !important;
+        color: #212529 !important;
+    }
+
+    /* クイック打刻タグ */
+    .tag-quick-buttons {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: 4px !important;
+    }
+
+    .tag-quick-buttons .tag-btn-item {
+        font-size: 10px !important;
+        padding: 4px 8px !important;
+    }
+    
+    /* 作戦盤サイドバー */
+    .tactics-sidebar {
+        flex: none !important;
+        width: 100% !important;
+        height: auto !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 6px !important;
+        gap: 6px !important;
     }
 }
 
