@@ -1156,27 +1156,14 @@ function updateCanvasToolClass() {
     }
 }
 
-// 共通の座標計算関数（縦向き90度回転フルスクリーン時の補正機能付き）
+// 共通の座標計算関数
 function getCanvasMousePos(e, canvas) {
     if (!canvas) return { x: 0, y: 0 };
     const rect = canvas.getBoundingClientRect();
-    
-    const isPseudo = dom.playerWrapper && dom.playerWrapper.classList.contains("pseudo-fullscreen");
-    const isPortrait = window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
-    
-    if (isPseudo && isPortrait) {
-        // 90度時計回りに回転しているため、タッチ座標(clientX/Y)をCanvasローカル座標(x/y)に逆変換
-        // x = clientY - rect.top
-        // y = rect.right - clientX
-        const x = e.clientY - rect.top;
-        const y = rect.right - e.clientX;
-        return { x, y };
-    } else {
-        return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-    }
+    return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+    };
 }
 
 function initCanvas() {
@@ -1222,11 +1209,10 @@ function initCanvas() {
 }
 
 function resizeCanvas() {
-    // YouTube埋め込みの表示サイズにキャンバスサイズを正確にフィットさせる
-    const container = document.querySelector(".player-wrapper");
+    // YouTube埋め込み（動画プレイヤーコンテナ）の表示サイズにキャンバスサイズを正確にフィットさせる
+    const container = document.getElementById("yt-player-container");
     if (!container) return;
 
-    // 回転の影響を受けない offsetWidth/offsetHeight を使用
     const width = container.offsetWidth;
     const height = container.offsetHeight;
     state.canvas.width = width;

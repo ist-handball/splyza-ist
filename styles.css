@@ -1527,8 +1527,29 @@ body {
     background: #000 !important;
 }
 
+.player-wrapper.pseudo-fullscreen #yt-player-container,
+.player-wrapper.pseudo-fullscreen #annotation-canvas {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    margin: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-width: calc(100vh * 16 / 9) !important;
+    max-height: calc(100vw * 9 / 16) !important;
+}
+
 .player-wrapper.pseudo-fullscreen #yt-player-container {
     pointer-events: auto !important; /* 擬似フルスクリーン中も再生・一時停止・シークを許可 */
+}
+
+.player-wrapper.pseudo-fullscreen #annotation-canvas {
+    pointer-events: none !important;
+}
+.player-wrapper.pseudo-fullscreen #annotation-canvas.drawing-active {
+    pointer-events: auto !important;
 }
 
 /* 擬似フルスクリーン時にもフローティングツールバーとトリガーボタンを表示する */
