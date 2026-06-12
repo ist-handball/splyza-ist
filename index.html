@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.31.0">
+    <link rel="stylesheet" href="styles.css?v=2.32.0">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -168,6 +168,18 @@
 
                     <!-- 右：分析パネル（タグ＆チャット） -->
                     <div class="sidebar-column">
+                        <!-- スマホ専用動画ロードパネル -->
+                        <div class="mobile-video-input-panel">
+                            <div class="input-group" style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
+                                <i class="fa-brands fa-youtube input-icon" style="color: #ff0000; font-size: 16px;"></i>
+                                <input type="text" id="mobile-youtube-url" placeholder="YouTube動画URL または IDを入力..." style="flex: 1; height: 32px; font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-primary);">
+                                <button id="mobile-load-video-btn" class="btn btn-primary" style="height: 32px; font-size: 12px; padding: 0 12px; border-radius: 6px;">読込</button>
+                            </div>
+                            <select id="mobile-video-history-select" class="select-input" style="width: 100%; height: 32px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-primary); margin-bottom: 8px;" title="過去に読み込んだ動画">
+                                <option value="">過去の分析動画から選択...</option>
+                            </select>
+                        </div>
+
                         <div class="sidebar-tabs">
                             <button class="sidebar-tab-btn active" data-sidebar-tab="tag-panel">
                                 <i class="fa-solid fa-tags"></i> プレー分類タグ
@@ -367,7 +379,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.31.0"></script>
+    <script src="app.js?v=2.32.0"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');

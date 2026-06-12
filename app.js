@@ -201,18 +201,79 @@ function initYouTubePlayer() {
     }
 }
 
+// 動画入力欄・履歴の3系統同期関数
+function syncVideoInputs(url, videoId) {
+    if (dom.youtubeUrl) dom.youtubeUrl.value = url || "";
+    if (dom.settingsYoutubeUrl) dom.settingsYoutubeUrl.value = url || "";
+    if (dom.mobileYoutubeUrl) dom.mobileYoutubeUrl.value = url || "";
+    
+    if (dom.videoHistorySelect) dom.videoHistorySelect.value = videoId || "";
+    if (dom.settingsVideoHistorySelect) dom.settingsVideoHistorySelect.value = videoId || "";
+    if (dom.mobileVideoHistorySelect) dom.mobileVideoHistorySelect.value = videoId || "";
+}
+
+// 共通動画ロード処理
+function triggerVideoLoad(url) {
+    if (!url) {
+        showNotification("YouTube URL または 動画IDを入力してください。", "warning");
+        return;
+    }
+    const videoId = extractVideoId(url);
+    if (!videoId || videoId.length !== 11) {
+        showNotification("有効なYouTube URLまたは動画ID（11桁）を入力してください。", "warning");
+        return;
+    }
+    state.videoId = videoId;
+    localStorage.setItem("splyza_youtube_url", url);
+    localStorage.setItem("splyza_video_id", videoId);
+    
+    syncVideoInputs(url, videoId);
+    
+    // 履歴に一時登録 (プレイヤーロード後に正式タイトルに更新)
+    addVideoToHistory(videoId, url, `動画: ${videoId}`);
+    
+    showNotification("動画を読み込んでいます...", "info", 2000);
+    loadYouTubeVideo(videoId);
+    loadAllData();
+}
+
+// 共通動画履歴選択処理
+function triggerVideoSelect(videoId) {
+    if (!videoId) return;
+    
+    const historyItem = state.videoHistory.find(item => item.videoId === videoId);
+    if (historyItem) {
+        state.videoId = videoId;
+        localStorage.setItem("splyza_youtube_url", historyItem.url);
+        localStorage.setItem("splyza_video_id", videoId);
+        
+        syncVideoInputs(historyItem.url, videoId);
+        
+        showNotification("動画を履歴から切り替えています...", "info", 2000);
+        loadYouTubeVideo(videoId);
+        loadAllData();
+    }
+}
+
 // 動画履歴の描画
 function renderVideoHistorySelect() {
-    if (!dom.videoHistorySelect) return;
-    dom.videoHistorySelect.innerHTML = '<option value="">過去の分析動画...</option>';
-    state.videoHistory.forEach(item => {
-        const opt = document.createElement("option");
-        opt.value = item.videoId;
-        opt.textContent = item.title;
-        if (item.videoId === state.videoId) {
-            opt.selected = true;
-        }
-        dom.videoHistorySelect.appendChild(opt);
+    const selectBoxes = [
+        dom.videoHistorySelect,
+        dom.settingsVideoHistorySelect,
+        dom.mobileVideoHistorySelect
+    ].filter(Boolean);
+    
+    selectBoxes.forEach(selectBox => {
+        selectBox.innerHTML = '<option value="">過去の分析動画から選択...</option>';
+        state.videoHistory.forEach(item => {
+            const opt = document.createElement("option");
+            opt.value = item.videoId;
+            opt.textContent = item.title;
+            if (item.videoId === state.videoId) {
+                opt.selected = true;
+            }
+            selectBox.appendChild(opt);
+        });
     });
 }
 
@@ -440,7 +501,11 @@ function initDOMReferences() {
         // スマホ用設定モーダル動画ロード
         settingsYoutubeUrl: document.getElementById("settings-youtube-url"),
         settingsLoadVideoBtn: document.getElementById("settings-load-video-btn"),
-        settingsVideoHistorySelect: document.getElementById("settings-video-history-select")
+        settingsVideoHistorySelect: document.getElementById("settings-video-history-select"),
+        // スマホメイン画面用動画ロード
+        mobileYoutubeUrl: document.getElementById("mobile-youtube-url"),
+        mobileLoadVideoBtn: document.getElementById("mobile-load-video-btn"),
+        mobileVideoHistorySelect: document.getElementById("mobile-video-history-select")
     };
     
     state.canvas = dom.canvas;
@@ -468,8 +533,10 @@ function loadSettingsFromStorage() {
     // 保存された動画情報
     const savedUrl = localStorage.getItem("splyza_youtube_url");
     const savedVideoId = localStorage.getItem("splyza_video_id");
-    if (savedUrl && dom.youtubeUrl) {
-        dom.youtubeUrl.value = savedUrl;
+    if (savedUrl) {
+        if (dom.youtubeUrl) dom.youtubeUrl.value = savedUrl;
+        if (dom.settingsYoutubeUrl) dom.settingsYoutubeUrl.value = savedUrl;
+        if (dom.mobileYoutubeUrl) dom.mobileYoutubeUrl.value = savedUrl;
     }
     if (savedVideoId) {
         state.videoId = savedVideoId;
@@ -1089,6 +1156,30 @@ function updateCanvasToolClass() {
     }
 }
 
+// 共通の座標計算関数（縦向き90度回転フルスクリーン時の補正機能付き）
+function getCanvasMousePos(e, canvas) {
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    
+    const isPseudo = dom.playerWrapper && dom.playerWrapper.classList.contains("pseudo-fullscreen");
+    const isPortrait = window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
+    
+    if (isPseudo && isPortrait) {
+        // 90度時計回りに回転しているため座標を変換
+        // 回転中心は center center。
+        // x = clientY - rect.top
+        // y = rect.right - clientX
+        const x = e.clientY - rect.top;
+        const y = rect.right - e.clientX;
+        return { x, y };
+    } else {
+        return {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+    }
+}
+
 function initCanvas() {
     // マウスイベント登録 (PC用)
     state.canvas.addEventListener("mousedown", startDrawing);
@@ -1105,9 +1196,9 @@ function initCanvas() {
     const eraserCursor = document.getElementById("eraser-cursor");
     state.canvas.addEventListener("mousemove", (e) => {
         if (state.activeTool === "eraser" && eraserCursor) {
-            const rect = state.canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+            const pos = getCanvasMousePos(e, state.canvas);
+            const x = pos.x;
+            const y = pos.y;
             const size = state.eraserSize * 3; // 消しゴムサイズスライダーの太さの3倍
             eraserCursor.style.width = `${size}px`;
             eraserCursor.style.height = `${size}px`;
@@ -1136,9 +1227,11 @@ function resizeCanvas() {
     const container = document.querySelector(".player-wrapper");
     if (!container) return;
 
-    const rect = container.getBoundingClientRect();
-    state.canvas.width = rect.width;
-    state.canvas.height = rect.height;
+    // 回転の影響を受けない offsetWidth/offsetHeight を使用
+    const width = container.offsetWidth;
+    const height = container.offsetHeight;
+    state.canvas.width = width;
+    state.canvas.height = height;
     
     // 再描画
     renderAnnotationsOnCanvas();
@@ -1176,9 +1269,9 @@ function startDrawing(e) {
     }
 
     state.isDrawing = true;
-    const rect = state.canvas.getBoundingClientRect();
-    state.startX = e.clientX - rect.left;
-    state.startY = e.clientY - rect.top;
+    const pos = getCanvasMousePos(e, state.canvas);
+    state.startX = pos.x;
+    state.startY = pos.y;
 
     state.currentDrawingObj = {
         tool: state.activeTool,
@@ -1192,9 +1285,9 @@ function startDrawing(e) {
 function draw(e) {
     if (!state.isDrawing || !state.currentDrawingObj) return;
 
-    const rect = state.canvas.getBoundingClientRect();
-    const curX = e.clientX - rect.left;
-    const curY = e.clientY - rect.top;
+    const pos = getCanvasMousePos(e, state.canvas);
+    const curX = pos.x;
+    const curY = pos.y;
 
     // 現在のフレームキャンバスを一度リセットして再描画
     renderAnnotationsOnCanvas();
@@ -1234,9 +1327,9 @@ function stopDrawing(e) {
     if (!state.isDrawing || !state.currentDrawingObj) return;
     state.isDrawing = false;
 
-    const rect = state.canvas.getBoundingClientRect();
-    const endX = e.clientX - rect.left;
-    const endY = e.clientY - rect.top;
+    const pos = getCanvasMousePos(e, state.canvas);
+    const endX = pos.x;
+    const endY = pos.y;
 
     if (state.activeTool === "text") {
         const text = prompt("アノテーションテキストを入力してください:");
@@ -2219,49 +2312,50 @@ function stopTacticsDraw() {
 // 12. アプリ全体のイベント制御
 // ----------------------------------------------------------------------------
 function setupEventListeners() {
-    // 1. 動画の読み込みボタン
+    // 1. 動画の読み込みボタン (PC版)
     if (dom.loadVideoBtn) {
         dom.loadVideoBtn.addEventListener("click", () => {
             const url = dom.youtubeUrl.value.trim();
-            if (!url) {
-                showNotification("YouTube URL または 動画IDを入力してください。", "warning");
-                return;
-            }
-            const videoId = extractVideoId(url);
-            if (!videoId || videoId.length !== 11) {
-                showNotification("有効なYouTube URLまたは動画ID（11桁）を入力してください。", "warning");
-                return;
-            }
-            state.videoId = videoId;
-            localStorage.setItem("splyza_youtube_url", url);
-            localStorage.setItem("splyza_video_id", videoId);
-            
-            // 履歴に一時登録 (プレイヤーロード後に正式タイトルに更新)
-            addVideoToHistory(videoId, url, `動画: ${videoId}`);
-            
-            showNotification("動画を読み込んでいます...", "info", 2000);
-            loadYouTubeVideo(videoId);
-            loadAllData();
+            triggerVideoLoad(url);
         });
     }
 
-    // 過去の分析動画履歴の切り替え
+    // 1-2. 動画の読み込みボタン (スマホメイン版)
+    if (dom.mobileLoadVideoBtn) {
+        dom.mobileLoadVideoBtn.addEventListener("click", () => {
+            const url = dom.mobileYoutubeUrl.value.trim();
+            triggerVideoLoad(url);
+        });
+    }
+
+    // 1-3. 動画の読み込みボタン (設定モーダル版)
+    if (dom.settingsLoadVideoBtn) {
+        dom.settingsLoadVideoBtn.addEventListener("click", () => {
+            const url = dom.settingsYoutubeUrl.value.trim();
+            triggerVideoLoad(url);
+            if (dom.settingsModal) dom.settingsModal.classList.remove("active");
+        });
+    }
+
+    // 2. 過去の分析動画履歴の切り替え (PC版)
     if (dom.videoHistorySelect) {
         dom.videoHistorySelect.addEventListener("change", (e) => {
-            const videoId = e.target.value;
-            if (!videoId) return;
-            
-            const historyItem = state.videoHistory.find(item => item.videoId === videoId);
-            if (historyItem) {
-                state.videoId = videoId;
-                dom.youtubeUrl.value = historyItem.url;
-                localStorage.setItem("splyza_youtube_url", historyItem.url);
-                localStorage.setItem("splyza_video_id", videoId);
-                
-                showNotification("動画を履歴から切り替えています...", "info", 2000);
-                loadYouTubeVideo(videoId);
-                loadAllData();
-            }
+            triggerVideoSelect(e.target.value);
+        });
+    }
+
+    // 2-2. 過去の分析動画履歴の切り替え (スマホメイン版)
+    if (dom.mobileVideoHistorySelect) {
+        dom.mobileVideoHistorySelect.addEventListener("change", (e) => {
+            triggerVideoSelect(e.target.value);
+        });
+    }
+
+    // 2-3. 過去の分析動画履歴の切り替え (設定モーダル版)
+    if (dom.settingsVideoHistorySelect) {
+        dom.settingsVideoHistorySelect.addEventListener("change", (e) => {
+            triggerVideoSelect(e.target.value);
+            if (dom.settingsModal) dom.settingsModal.classList.remove("active");
         });
     }
 
