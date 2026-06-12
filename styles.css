@@ -1570,15 +1570,15 @@ body {
 }
 
 @media (max-width: 768px) {
-    /* スマートフォン専用：スクロール可能 ＆ 動画上部Sticky固定UI */
+    /* スマートフォン専用：上半分（動画）完全固定 ＆ 下半分（その他の部分）全体スクロールUI */
     body {
-        overflow-y: auto !important;
-        height: auto !important;
+        overflow: hidden !important; /* 画面全体のスクロールを禁止 */
+        height: 100vh !important;
     }
     
     .app-container {
-        height: auto !important;
-        overflow-y: auto !important;
+        height: 100vh !important;
+        overflow: hidden !important;
     }
     
     /* ヘッダーを極限までコンパクト化（高さ45px） */
@@ -1624,8 +1624,8 @@ body {
     }
     
     .app-main {
-        height: auto !important;
-        overflow: visible !important;
+        height: calc(100vh - 45px) !important;
+        overflow: hidden !important;
     }
     
     /* 映像分析モード・作戦盤モードのグリッドを上下の縦並びフレックスに */
@@ -1633,17 +1633,15 @@ body {
         display: flex !important;
         flex-direction: column !important;
         width: 100% !important;
-        height: auto !important;
+        height: 100% !important;
         padding: 0 !important;
         gap: 0 !important;
-        overflow: visible !important;
+        overflow: hidden !important;
     }
     
-    /* 上半分：プレイヤーカラム（動画）を画面上部にSticky固定 */
+    /* 上半分：プレイヤーカラム（動画）を画面上部に完全固定 */
     .player-column, .court-column {
-        position: sticky !important;
-        top: 0 !important;
-        z-index: 1000 !important;
+        position: relative !important;
         flex: 0 0 auto !important;
         width: 100% !important;
         height: auto !important;
@@ -1755,16 +1753,16 @@ body {
         box-shadow: var(--card-shadow);
     }
     
-    /* 下半分：サイドバーカラム（スクロールする） */
+    /* 下半分：サイドバーカラム（その他の部分全体をスクロール） */
     .sidebar-column {
-        flex: none !important;
+        flex: 1 1 0% !important; /* 残りの高さをすべて占有 */
         width: 100% !important;
-        height: auto !important;
+        height: 100% !important;
         min-height: 0 !important;
         border: none !important;
         border-radius: 0 !important;
         box-shadow: none !important;
-        overflow: visible !important;
+        overflow-y: auto !important; /* この領域全体をスクロール可能に */
     }
     
     .sidebar-tabs {
@@ -1780,7 +1778,6 @@ body {
     /* 各コンテンツ領域は縦スクロールさせる */
     .sidebar-tab-content {
         height: auto !important;
-        min-height: 300px !important;
         padding: 8px !important;
         overflow: visible !important;
     }
@@ -1829,37 +1826,6 @@ body {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
     }
     
-    /* 縦画面（ポートレート）時のYouTube風90度自動回転フルスクリーン */
-    @media (orientation: portrait) {
-        .player-wrapper.pseudo-fullscreen {
-            position: fixed !important;
-            top: 50% !important;
-            left: 50% !important;
-            width: 100vh !important; /* 横幅を画面の高さに */
-            height: 100vw !important; /* 高さを画面の幅に */
-            transform: translate(-50%, -50%) rotate(90deg) !important;
-            transform-origin: center center !important;
-            z-index: 99999 !important;
-            border-radius: 0 !important;
-            border: none !important;
-            background: #000 !important;
-        }
-        
-        /* 回転した画面内でのツールバーの配置調整 */
-        .player-wrapper.pseudo-fullscreen .fullscreen-toolbar {
-            position: absolute !important;
-            top: 10px !important;
-            left: 50% !important;
-            transform: translate(-50%, 0) !important;
-        }
-        
-        .player-wrapper.pseudo-fullscreen .fs-trigger-btn {
-            position: absolute !important;
-            top: 10px !important;
-            left: 50% !important;
-            transform: translate(-50%, 0) !important;
-        }
-    }
 
     /* 打刻済みプレー履歴の独立スクロール化 */
     .tag-history-list {

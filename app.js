@@ -2297,6 +2297,42 @@ function stopTacticsDraw() {
 // 12. アプリ全体のイベント制御
 // ----------------------------------------------------------------------------
 function setupEventListeners() {
+    // URL入力欄のクリック/フォーカス時に全選択するヘルパー
+    function makeInputAutoSelect(input) {
+        if (!input) return;
+        
+        let isFocused = false;
+        
+        input.addEventListener("focus", function() {
+            setTimeout(() => {
+                input.select();
+                if (typeof input.setSelectionRange === "function") {
+                    input.setSelectionRange(0, input.value.length);
+                }
+            }, 50);
+        });
+
+        input.addEventListener("blur", () => {
+            isFocused = false;
+        });
+
+        input.addEventListener("click", function(e) {
+            if (!isFocused) {
+                isFocused = true;
+                input.select();
+                if (typeof input.setSelectionRange === "function") {
+                    input.setSelectionRange(0, input.value.length);
+                }
+                e.preventDefault();
+            }
+        });
+    }
+
+    // 各URL入力欄に自動全選択を適用
+    makeInputAutoSelect(dom.youtubeUrl);
+    makeInputAutoSelect(dom.mobileYoutubeUrl);
+    makeInputAutoSelect(dom.settingsYoutubeUrl);
+
     // 1. 動画の読み込みボタン (PC版)
     if (dom.loadVideoBtn) {
         dom.loadVideoBtn.addEventListener("click", () => {
