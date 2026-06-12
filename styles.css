@@ -1839,6 +1839,13 @@ body {
             transform: translate(-50%, 0) !important;
         }
     }
+
+    /* 打刻済みプレー履歴の独立スクロール化 */
+    .tag-history-list {
+        max-height: 280px !important;
+        overflow-y: auto !important;
+        padding-right: 4px !important;
+    }
     
     /* 作戦盤のサイドバーもスマホ向けに最適化 */
     .tactics-sidebar {

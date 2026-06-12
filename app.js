@@ -1165,8 +1165,7 @@ function getCanvasMousePos(e, canvas) {
     const isPortrait = window.matchMedia("(max-width: 768px) and (orientation: portrait)").matches;
     
     if (isPseudo && isPortrait) {
-        // 90度時計回りに回転しているため座標を変換
-        // 回転中心は center center。
+        // 90度時計回りに回転しているため、タッチ座標(clientX/Y)をCanvasローカル座標(x/y)に逆変換
         // x = clientY - rect.top
         // y = rect.right - clientX
         const x = e.clientY - rect.top;
