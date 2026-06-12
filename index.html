@@ -11,12 +11,12 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.14.0">
+    <link rel="stylesheet" href="styles.css?v=2.28.0">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
 </head>
-<body>
+<body class="light-theme">
     <div class="app-container">
         <!-- ヘッダー -->
         <header class="app-header">
@@ -47,6 +47,7 @@
 
             <div class="header-actions">
                 <span id="user-display-name" class="user-badge"><i class="fa-solid fa-user"></i> ゲストユーザー</span>
+                <button id="theme-toggle-btn" class="btn btn-icon" title="ダークモードに切り替え"><i class="fa-solid fa-moon"></i></button>
                 <button id="open-settings-btn" class="btn btn-icon" title="設定"><i class="fa-solid fa-gear"></i></button>
             </div>
         </header>
@@ -58,7 +59,7 @@
                 <div class="analysis-grid">
                     <!-- 左：プレイヤー＆アノテーション -->
                     <div class="player-column">
-                        <div class="player-wrapper">
+                        <div class="player-wrapper" id="player-wrapper">
                             <!-- YouTube埋め込み領域 -->
                             <div id="yt-player-container">
                                 <div id="yt-player"></div>
@@ -66,6 +67,39 @@
                             <!-- アノテーションCanvas -->
                             <canvas id="annotation-canvas"></canvas>
                             <div id="eraser-cursor" class="custom-eraser-cursor"></div>
+                            <!-- 動画上のリアルタイムタグ/コメントオーバーレイ -->
+                            <div id="video-overlay-container" class="video-overlay-container"></div>
+                            
+                            <!-- 右下全画面表示ボタン（YouTube風オーバーレイ） -->
+                            <button id="video-fullscreen-btn-overlay" class="video-fullscreen-btn-overlay" title="全画面表示"><i class="fa-solid fa-expand"></i></button>
+
+                            <!-- フルスクリーンツールバー展開トリガーボタン -->
+                            <button id="fs-trigger-btn" class="fs-trigger-btn" title="書き込みツールを開く">
+                                <i class="fa-solid fa-palette"></i>
+                            </button>
+
+                            <!-- フルスクリーン時用フローティングアノテーションツールバー -->
+                            <div id="fullscreen-toolbar" class="fullscreen-toolbar">
+                                <button id="fs-minimize-btn" class="fs-btn" title="ツールバーをたたむ"><i class="fa-solid fa-chevron-left"></i></button>
+                                <button class="fs-tool-btn" data-tool="pen" title="ペン"><i class="fa-solid fa-pen"></i></button>
+                                <button class="fs-tool-btn" data-tool="eraser" title="消しゴム"><i class="fa-solid fa-eraser"></i></button>
+                                <button class="fs-tool-btn" data-tool="arrow" title="矢印"><i class="fa-solid fa-arrow-right"></i></button>
+                                <button class="fs-tool-btn" data-tool="rect" title="四角"><i class="fa-regular fa-square"></i></button>
+                                <button class="fs-tool-btn" data-tool="circle" title="円"><i class="fa-regular fa-circle"></i></button>
+                                <button class="fs-tool-btn" data-tool="text" title="テキスト"><i class="fa-solid fa-font"></i></button>
+                                
+                                <div class="fs-color-picker">
+                                    <button class="fs-color-dot active" data-color="#ff4757" style="background-color: #ff4757;"></button>
+                                    <button class="fs-color-dot" data-color="#1e90ff" style="background-color: #1e90ff;"></button>
+                                    <button class="fs-color-dot" data-color="#2ed573" style="background-color: #2ed573;"></button>
+                                    <button class="fs-color-dot" data-color="#ffa502" style="background-color: #ffa502;"></button>
+                                    <button class="fs-color-dot" data-color="#ffffff" style="background-color: #ffffff;"></button>
+                                </div>
+                                
+                                <button id="fs-undo-btn" class="fs-btn" title="元に戻す (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+                                <button id="fs-clear-btn" class="fs-btn" title="全消去"><i class="fa-solid fa-trash-can"></i></button>
+                                <button id="fs-close-btn" class="fs-btn" title="全画面解除"><i class="fa-solid fa-compress"></i></button>
+                            </div>
                         </div>
 
                         <!-- プレイヤーコントロール -->
@@ -91,6 +125,7 @@
                                     <option value="1.5">1.5x</option>
                                     <option value="2">2.0x</option>
                                 </select>
+                                <button id="fullscreen-btn" class="btn btn-secondary btn-icon" title="全画面表示"><i class="fa-solid fa-expand"></i></button>
                             </div>
 
                             <!-- アノテーションツール -->
@@ -316,7 +351,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.14.0"></script>
+    <script src="app.js?v=2.28.0"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');

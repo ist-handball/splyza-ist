@@ -127,7 +127,8 @@ const state = {
     videoHistory: [],
     tagFilterPlayer: "all",
     selectedQuickTags: [],
-    quickTags: ["シュート（成功）", "シュート（枠外）", "シュート（セーブ）", "警告", "退場", "ターンオーバー"]
+    quickTags: ["シュート（成功）", "シュート（枠外）", "シュート（セーブ）", "警告", "退場", "ターンオーバー"],
+    lastOverlayIds: ""
 };
 
 // ----------------------------------------------------------------------------
@@ -422,7 +423,20 @@ function initDOMReferences() {
         userDisplayName: document.getElementById("user-display-name"),
         stampPlayerNumber: document.getElementById("stamp-player-number"),
         tagFilterPlayer: document.getElementById("tag-filter-player"),
-        submitTagsBtn: document.getElementById("submit-tags-btn")
+        submitTagsBtn: document.getElementById("submit-tags-btn"),
+        themeToggleBtn: document.getElementById("theme-toggle-btn"),
+        fullscreenBtn: document.getElementById("fullscreen-btn"),
+        playerWrapper: document.getElementById("player-wrapper"),
+        videoOverlayContainer: document.getElementById("video-overlay-container"),
+        videoFullscreenBtnOverlay: document.getElementById("video-fullscreen-btn-overlay"),
+        fullscreenToolbar: document.getElementById("fullscreen-toolbar"),
+        fsToolBtns: document.querySelectorAll(".fs-tool-btn"),
+        fsColorDots: document.querySelectorAll(".fs-color-dot"),
+        fsUndoBtn: document.getElementById("fs-undo-btn"),
+        fsClearBtn: document.getElementById("fs-clear-btn"),
+        fsCloseBtn: document.getElementById("fs-close-btn"),
+        fsTriggerBtn: document.getElementById("fs-trigger-btn"),
+        fsMinimizeBtn: document.getElementById("fs-minimize-btn")
     };
     
     state.canvas = dom.canvas;
@@ -481,6 +495,30 @@ function loadSettingsFromStorage() {
             initFirebase(state.firebaseConfig);
         } catch (e) {
             console.error("Firebase設定の読み込みに失敗しました", e);
+        }
+    }
+
+    // テーマ初期化
+    const savedTheme = localStorage.getItem("splyza_theme");
+    if (savedTheme === "dark") {
+        document.body.classList.remove("light-theme");
+        updateThemeToggleIcon(false);
+    } else {
+        document.body.classList.add("light-theme");
+        updateThemeToggleIcon(true);
+    }
+}
+
+function updateThemeToggleIcon(isLight) {
+    if (!dom.themeToggleBtn) return;
+    const icon = dom.themeToggleBtn.querySelector("i");
+    if (icon) {
+        if (isLight) {
+            icon.className = "fa-solid fa-moon";
+            dom.themeToggleBtn.title = "ダークモードに切り替え";
+        } else {
+            icon.className = "fa-solid fa-sun";
+            dom.themeToggleBtn.title = "ライトモードに切り替え";
         }
     }
 }
@@ -900,6 +938,86 @@ function updatePlaybackProgress() {
 
     // アノテーションの描画更新
     renderAnnotationsOnCanvas();
+
+    // 動画上のリアルタイムタグ・コメントオーバーレイ表示更新
+    updateVideoOverlay(currTime);
+}
+
+function updateVideoOverlay(time) {
+    if (!dom.videoOverlayContainer) return;
+    
+    // 表示すべきタグを抽出（打刻時間から5秒間）
+    const visibleTags = state.tags.filter(t => time >= t.time && time <= t.time + 5);
+    
+    // 表示すべきコメントを抽出（タイムスタンプ付きで、打刻時間から5秒間）
+    const visibleComments = state.comments.filter(c => 
+        c.attachTime !== undefined && c.attachTime !== null && time >= c.attachTime && time <= c.attachTime + 5
+    );
+    
+    // 表示アイテムの構築 (同一打刻タグ内の複数バッジは1つのアイテムに集約)
+    const items = [];
+    visibleTags.forEach(t => {
+        items.push({
+            id: `tag_${t.id}`,
+            type: "tag",
+            badges: t.names || [t.name || ""],
+            playerNumber: t.playerNumber ? `#${t.playerNumber}` : "",
+            comment: t.comment || ""
+        });
+    });
+    
+    visibleComments.forEach(c => {
+        items.push({
+            id: `comm_${c.id}`,
+            type: "comment",
+            badge: c.user,
+            text: c.content
+        });
+    });
+    
+    // チラつき防止（表示すべきアイテムのIDリストに変化がない場合はDOM更新をスキップ）
+    const currentIds = items.map(item => item.id).sort().join(",");
+    if (state.lastOverlayIds === currentIds) {
+        return;
+    }
+    state.lastOverlayIds = currentIds;
+    
+    dom.videoOverlayContainer.innerHTML = "";
+    
+    if (items.length === 0) return;
+    
+    items.forEach(item => {
+        const el = document.createElement("div");
+        el.className = "overlay-item";
+        
+        let contentHtml = "";
+        if (item.type === "tag") {
+            // タグバッジ群を横並びにする
+            let badgesHtml = "";
+            item.badges.forEach(b => {
+                if (b.trim()) {
+                    badgesHtml += `<span class="overlay-badge"><i class="fa-solid fa-tag"></i> ${escapeHTML(b)}</span>`;
+                }
+            });
+            // 背番号バッジ (背番号も独立したバッジ状にする)
+            const playerInfo = item.playerNumber ? `<span class="overlay-badge overlay-badge-player" style="color: var(--accent-blue);"><i class="fa-solid fa-user"></i> ${escapeHTML(item.playerNumber)}</span>` : "";
+            const commentInfo = item.comment ? `<span class="overlay-comment-text" style="margin-left: 4px;">${escapeHTML(item.comment)}</span>` : "";
+            
+            contentHtml = `
+                ${badgesHtml}
+                ${playerInfo}
+                ${commentInfo}
+            `;
+        } else {
+            contentHtml = `
+                <span class="overlay-badge overlay-badge-comment"><i class="fa-solid fa-comment"></i> ${escapeHTML(item.badge)}</span>
+                <span class="overlay-comment">${escapeHTML(item.text)}</span>
+            `;
+        }
+        
+        el.innerHTML = contentHtml;
+        dom.videoOverlayContainer.appendChild(el);
+    });
 }
 
 // 時間のフォーマット (MM:SS)
@@ -1460,16 +1578,20 @@ function renderCommentsList() {
             timeBadgeHtml = `<span class="chat-msg-time-badge" data-time="${msg.attachTime}"><i class="fa-solid fa-clock"></i> ${formatTime(msg.attachTime)}</span>`;
         }
 
-        // 誰のメッセージでも削除ボタンを表示
+        // 誰のメッセージでも削除ボタンを表示、自分なら編集ボタンも表示
         const deleteBtnHtml = `<button class="chat-msg-delete-btn" title="メッセージを削除"><i class="fa-solid fa-trash-can"></i></button>`;
+        const editBtnHtml = isMine ? `<button class="chat-msg-edit-btn" title="メッセージを編集"><i class="fa-solid fa-pen"></i></button>` : "";
+        const editedTagHtml = msg.edited ? `<span class="chat-msg-edited-tag">（編集済み）</span>` : "";
 
         bubble.innerHTML = `
             <div class="chat-msg-meta">
                 <strong>${msg.user}</strong>
                 ${timeBadgeHtml}
+                ${editedTagHtml}
             </div>
             <div class="chat-msg-content">
-                ${escapeHTML(msg.content)}
+                <span class="chat-msg-text-span">${escapeHTML(msg.content)}</span>
+                ${editBtnHtml}
                 ${deleteBtnHtml}
             </div>
         `;
@@ -1487,11 +1609,74 @@ function renderCommentsList() {
             }
         });
 
+        // 自分自身のメッセージ編集用のイベントリスナーをバインド
+        if (isMine) {
+            const editBtn = bubble.querySelector(".chat-msg-edit-btn");
+            if (editBtn) {
+                editBtn.addEventListener("click", () => {
+                    enterEditMode(msg, bubble);
+                });
+            }
+        }
+
         dom.chatMessages.appendChild(bubble);
     });
 
     // スクロールを最下部に
     dom.chatMessages.scrollTop = dom.chatMessages.scrollHeight;
+}
+
+function enterEditMode(msg, bubbleEl) {
+    const contentEl = bubbleEl.querySelector(".chat-msg-content");
+    if (!contentEl) return;
+    
+    // すでに編集モードなら何もしない
+    if (contentEl.querySelector(".chat-edit-container")) return;
+    
+    const originalContent = msg.content;
+    
+    contentEl.innerHTML = `
+        <div class="chat-edit-container">
+            <textarea class="chat-edit-input">${originalContent}</textarea>
+            <div class="chat-edit-actions">
+                <button class="btn-mini btn-mini-save">保存</button>
+                <button class="btn-mini btn-mini-cancel">キャンセル</button>
+            </div>
+        </div>
+    `;
+    
+    const textarea = contentEl.querySelector(".chat-edit-input");
+    textarea.focus();
+    // カーソルをテキストの最後に移動
+    textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    
+    // 保存ボタンイベント
+    contentEl.querySelector(".btn-mini-save").addEventListener("click", async () => {
+        const newText = textarea.value.trim();
+        if (!newText) {
+            showNotification("コメントを入力してください。", "warning");
+            return;
+        }
+        
+        if (newText === originalContent) {
+            renderCommentsList();
+            return;
+        }
+        
+        const updatedMsg = {
+            ...msg,
+            content: newText,
+            edited: true
+        };
+        
+        await saveData("comments", msg.id, updatedMsg);
+        showNotification("コメントを更新しました。", "success");
+    });
+    
+    // キャンセルボタンイベント
+    contentEl.querySelector(".btn-mini-cancel").addEventListener("click", () => {
+        renderCommentsList();
+    });
 }
 
 function sendChatMessage() {
@@ -2129,7 +2314,6 @@ function setupEventListeners() {
                     
                     // すでに選択中のツールを再クリックした場合はトグル解除（閲覧モードに戻る）
                     if (state.activeTool === clickedTool) {
-                        dom.toolBtns.forEach(b => b.classList.remove("active"));
                         state.activeTool = "";
                         
                         if (state.canvas) {
@@ -2138,8 +2322,6 @@ function setupEventListeners() {
                         if (ytContainer) ytContainer.style.pointerEvents = "auto"; // 動画操作を可能に
                     } else {
                         // 新規にツールを選択
-                        dom.toolBtns.forEach(b => b.classList.remove("active"));
-                        btn.classList.add("active");
                         state.activeTool = clickedTool;
                         
                         if (state.canvas) {
@@ -2163,8 +2345,9 @@ function setupEventListeners() {
                         }
                     }
                     
-                    // カーソルの更新
+                    // カーソルの更新とUI同期
                     updateCanvasToolClass();
+                    syncAnnotationToolbarUI();
                 });
             }
         });
@@ -2175,9 +2358,8 @@ function setupEventListeners() {
         dom.colorDots.forEach(dot => {
             if (dot) {
                 dot.addEventListener("click", () => {
-                    dom.colorDots.forEach(d => d.classList.remove("active"));
-                    dot.classList.add("active");
                     state.currentColor = dot.getAttribute("data-color");
+                    syncAnnotationToolbarUI();
                 });
             }
         });
@@ -2443,6 +2625,211 @@ function setupEventListeners() {
                 location.reload();
             }
         });
+    }
+
+    // テーマ切り替え
+    if (dom.themeToggleBtn) {
+        dom.themeToggleBtn.addEventListener("click", () => {
+            const isLight = document.body.classList.toggle("light-theme");
+            localStorage.setItem("splyza_theme", isLight ? "light" : "dark");
+            updateThemeToggleIcon(isLight);
+        });
+    }
+
+    // 全画面表示
+    if (dom.fullscreenBtn) {
+        dom.fullscreenBtn.addEventListener("click", toggleFullscreen);
+    }
+
+    // フルスクリーン変更イベントの監視
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+
+    // 動画右下全画面ボタン
+    if (dom.videoFullscreenBtnOverlay) {
+        dom.videoFullscreenBtnOverlay.addEventListener("click", toggleFullscreen);
+    }
+
+    // フルスクリーンアノテーションツールバーのツール切り替え
+    if (dom.fsToolBtns) {
+        dom.fsToolBtns.forEach(btn => {
+            if (btn) {
+                btn.addEventListener("click", () => {
+                    const clickedTool = btn.getAttribute("data-tool");
+                    const ytContainer = document.getElementById("yt-player-container");
+                    
+                    if (state.activeTool === clickedTool) {
+                        state.activeTool = "";
+                        if (state.canvas) {
+                            state.canvas.classList.remove("drawing-active");
+                        }
+                        if (ytContainer) ytContainer.style.pointerEvents = "auto";
+                    } else {
+                        state.activeTool = clickedTool;
+                        if (state.canvas) {
+                            state.canvas.classList.add("drawing-active");
+                        }
+                        if (ytContainer) ytContainer.style.pointerEvents = "none";
+                    }
+                    
+                    // ツール切り替えに伴うスライダー値の同期
+                    if (dom.brushSize) {
+                        if (state.activeTool === "eraser") {
+                            dom.brushSize.value = state.eraserSize;
+                            if (dom.brushSizeVal) {
+                                dom.brushSizeVal.textContent = (state.eraserSize * 3) + "px";
+                            }
+                        } else if (state.activeTool) {
+                            dom.brushSize.value = state.brushSize;
+                            if (dom.brushSizeVal) {
+                                dom.brushSizeVal.textContent = state.brushSize + "px";
+                            }
+                        }
+                    }
+                    
+                    updateCanvasToolClass();
+                    syncAnnotationToolbarUI();
+                });
+            }
+        });
+    }
+
+    // フルスクリーンアノテーションツールバーのカラー切り替え
+    if (dom.fsColorDots) {
+        dom.fsColorDots.forEach(dot => {
+            if (dot) {
+                dot.addEventListener("click", () => {
+                    state.currentColor = dot.getAttribute("data-color");
+                    syncAnnotationToolbarUI();
+                });
+            }
+        });
+    }
+
+    // フルスクリーン Undo
+    if (dom.fsUndoBtn) {
+        dom.fsUndoBtn.addEventListener("click", () => {
+            if (dom.undoBtn) dom.undoBtn.click();
+        });
+    }
+
+    // フルスクリーン Clear
+    if (dom.fsClearBtn) {
+        dom.fsClearBtn.addEventListener("click", () => {
+            if (dom.clearBtn) dom.clearBtn.click();
+        });
+    }
+
+    // フルスクリーン解除
+    if (dom.fsCloseBtn) {
+        dom.fsCloseBtn.addEventListener("click", toggleFullscreen);
+    }
+
+    // フルスクリーンツールバーの展開トリガー
+    if (dom.fsTriggerBtn) {
+        dom.fsTriggerBtn.addEventListener("click", () => {
+            if (dom.fullscreenToolbar) dom.fullscreenToolbar.classList.add("active");
+            dom.fsTriggerBtn.classList.add("hidden-trigger");
+        });
+    }
+
+    // フルスクリーンツールバーの最小化（たたむ）
+    if (dom.fsMinimizeBtn) {
+        dom.fsMinimizeBtn.addEventListener("click", () => {
+            if (dom.fullscreenToolbar) dom.fullscreenToolbar.classList.remove("active");
+            if (dom.fsTriggerBtn) dom.fsTriggerBtn.classList.remove("hidden-trigger");
+        });
+    }
+}
+
+function syncAnnotationToolbarUI() {
+    // ツールボタンの同期
+    if (dom.toolBtns) {
+        dom.toolBtns.forEach(btn => {
+            const tool = btn.getAttribute("data-tool");
+            if (tool === state.activeTool) {
+                btn.classList.add("active");
+            } else {
+                btn.classList.remove("active");
+            }
+        });
+    }
+    if (dom.fsToolBtns) {
+        dom.fsToolBtns.forEach(btn => {
+            const tool = btn.getAttribute("data-tool");
+            if (tool === state.activeTool) {
+                btn.classList.add("active");
+            } else {
+                btn.classList.remove("active");
+            }
+        });
+    }
+
+    // カラーの同期
+    if (dom.colorDots) {
+        dom.colorDots.forEach(dot => {
+            const color = dot.getAttribute("data-color");
+            if (color === state.currentColor) {
+                dot.classList.add("active");
+            } else {
+                dot.classList.remove("active");
+            }
+        });
+    }
+    if (dom.fsColorDots) {
+        dom.fsColorDots.forEach(dot => {
+            const color = dot.getAttribute("data-color");
+            if (color === state.currentColor) {
+                dot.classList.add("active");
+            } else {
+                dot.classList.remove("active");
+            }
+        });
+    }
+}
+
+function toggleFullscreen() {
+    const wrapper = dom.playerWrapper;
+    if (!wrapper) return;
+
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (wrapper.requestFullscreen) {
+            wrapper.requestFullscreen();
+        } else if (wrapper.webkitRequestFullscreen) {
+            wrapper.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function handleFullscreenChange() {
+    const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    if (dom.fullscreenBtn) {
+        const icon = dom.fullscreenBtn.querySelector("i");
+        if (icon) {
+            if (isFullscreen) {
+                icon.className = "fa-solid fa-compress";
+                dom.fullscreenBtn.title = "全画面表示を解除";
+            } else {
+                icon.className = "fa-solid fa-expand";
+                dom.fullscreenBtn.title = "全画面表示";
+            }
+        }
+    }
+    // 画面切り替え時のCanvasサイズ補正
+    setTimeout(() => {
+        resizeCanvas();
+    }, 150);
+
+    // 全画面解除されたら、ツールバーを畳んだ状態（初期状態）に強制リセット
+    if (!isFullscreen) {
+        if (dom.fullscreenToolbar) dom.fullscreenToolbar.classList.remove("active");
+        if (dom.fsTriggerBtn) dom.fsTriggerBtn.classList.remove("hidden-trigger");
     }
 }
 
