@@ -291,7 +291,7 @@ body {
 
 .analysis-grid {
     display: grid;
-    grid-template-columns: 1fr 360px;
+    grid-template-columns: 1fr 420px; /* 右側のタグ・チャット一覧幅を広げ、動画領域を少し狭めて縦長な比率に調整 */
     width: 100%;
     height: 100%;
     padding: 16px;
@@ -361,12 +361,12 @@ body {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 12px 18px;
+    padding: 8px 14px; /* パディングを詰めて縦にコンパクト化 */
     display: flex;
     flex-wrap: wrap;
     justify-content: space-between;
     align-items: center;
-    gap: 15px;
+    gap: 10px; /* 余白を縮小 */
     flex-shrink: 0;
 }
 
@@ -498,13 +498,13 @@ body {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 12px 18px;
+    padding: 6px 14px; /* パディングを詰めて縦にコンパクト化 */
     flex-shrink: 0;
 }
 
 .timeline-track-wrapper {
     position: relative;
-    padding-top: 15px;
+    padding-top: 12px; /* 余白を微調整 */
 }
 
 .timeline-ticks {
