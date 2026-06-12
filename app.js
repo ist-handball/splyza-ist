@@ -436,7 +436,11 @@ function initDOMReferences() {
         fsClearBtn: document.getElementById("fs-clear-btn"),
         fsCloseBtn: document.getElementById("fs-close-btn"),
         fsTriggerBtn: document.getElementById("fs-trigger-btn"),
-        fsMinimizeBtn: document.getElementById("fs-minimize-btn")
+        fsMinimizeBtn: document.getElementById("fs-minimize-btn"),
+        // スマホ用設定モーダル動画ロード
+        settingsYoutubeUrl: document.getElementById("settings-youtube-url"),
+        settingsLoadVideoBtn: document.getElementById("settings-load-video-btn"),
+        settingsVideoHistorySelect: document.getElementById("settings-video-history-select")
     };
     
     state.canvas = dom.canvas;
@@ -2792,23 +2796,43 @@ function toggleFullscreen() {
     const wrapper = dom.playerWrapper;
     if (!wrapper) return;
 
-    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        if (wrapper.requestFullscreen) {
-            wrapper.requestFullscreen();
-        } else if (wrapper.webkitRequestFullscreen) {
-            wrapper.webkitRequestFullscreen();
+    const hasNativeFullscreen = !!(wrapper.requestFullscreen || wrapper.webkitRequestFullscreen);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+    // iOSやネイティブフルスクリーンが使えないデバイス、またはすでに擬似フルスクリーンが有効な場合は擬似フルスクリーンを使用
+    if (!hasNativeFullscreen || isIOS || wrapper.classList.contains("pseudo-fullscreen")) {
+        const isPseudo = wrapper.classList.toggle("pseudo-fullscreen");
+        handleFullscreenChangeManual(isPseudo);
+        return;
+    }
+
+    // ネイティブフルスクリーンを試みる
+    try {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (wrapper.requestFullscreen) {
+                wrapper.requestFullscreen().catch(() => {
+                    // 拒否された場合は擬似フルスクリーンにフォールバック
+                    wrapper.classList.add("pseudo-fullscreen");
+                    handleFullscreenChangeManual(true);
+                });
+            } else if (wrapper.webkitRequestFullscreen) {
+                wrapper.webkitRequestFullscreen();
+            }
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
         }
-    } else {
-        if (document.exitFullscreen) {
-            document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
-            document.webkitExitFullscreen();
-        }
+    } catch (e) {
+        console.warn("Native fullscreen failed, falling back to pseudo-fullscreen", e);
+        const isPseudo = wrapper.classList.toggle("pseudo-fullscreen");
+        handleFullscreenChangeManual(isPseudo);
     }
 }
 
-function handleFullscreenChange() {
-    const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+function handleFullscreenChangeManual(isFullscreen) {
     if (dom.fullscreenBtn) {
         const icon = dom.fullscreenBtn.querySelector("i");
         if (icon) {
@@ -2821,16 +2845,34 @@ function handleFullscreenChange() {
             }
         }
     }
-    // 画面切り替え時のCanvasサイズ補正
-    setTimeout(() => {
-        resizeCanvas();
-    }, 150);
+    
+    // 全画面ボタン（動画上のオーバーレイボタン）のアイコンも同期
+    if (dom.videoFullscreenBtnOverlay) {
+        const icon = dom.videoFullscreenBtnOverlay.querySelector("i");
+        if (icon) {
+            icon.className = isFullscreen ? "fa-solid fa-compress" : "fa-solid fa-expand";
+        }
+    }
 
     // 全画面解除されたら、ツールバーを畳んだ状態（初期状態）に強制リセット
     if (!isFullscreen) {
         if (dom.fullscreenToolbar) dom.fullscreenToolbar.classList.remove("active");
         if (dom.fsTriggerBtn) dom.fsTriggerBtn.classList.remove("hidden-trigger");
     }
+
+    // 画面切り替え時のCanvasサイズ補正
+    setTimeout(() => {
+        resizeCanvas();
+    }, 150);
+}
+
+function handleFullscreenChange() {
+    const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+    // 擬似フルスクリーンクラスが付いている場合はネイティブ側のイベントを無視して擬似側に任せる
+    if (dom.playerWrapper && dom.playerWrapper.classList.contains("pseudo-fullscreen") && !isFullscreen) {
+        return;
+    }
+    handleFullscreenChangeManual(isFullscreen);
 }
 
 function togglePlayPause() {

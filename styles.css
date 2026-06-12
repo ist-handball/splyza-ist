@@ -1512,97 +1512,212 @@ body {
 /* -------------------------------------------------------------
    RESPONSIVE DESIGN (MEDIA QUERIES)
    ------------------------------------------------------------- */
-@media (max-width: 900px) {
-    /* タブレット縦画面やスマホなどの狭い画面用の設定 */
+/* 擬似フルスクリーンスタイル (iOS・スマホ等のフルスクリーンAPI非対応デバイス対策) */
+.player-wrapper.pseudo-fullscreen {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-width: 100vw !important;
+    max-height: 100vh !important;
+    z-index: 99999 !important;
+    border-radius: 0 !important;
+    border: none !important;
+    background: #000 !important;
+}
+
+.player-wrapper.pseudo-fullscreen #yt-player-container {
+    pointer-events: none !important; /* ダブルタップズーム等の誤動作を防ぐ */
+}
+
+/* 擬似フルスクリーン時にもフローティングツールバーとトリガーボタンを表示する */
+.player-wrapper.pseudo-fullscreen .fs-trigger-btn {
+    display: flex !important;
+}
+
+.player-wrapper.pseudo-fullscreen .fullscreen-toolbar.active {
+    display: flex !important;
+    transform: translate(-50%, 0) !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+@media (max-width: 768px) {
+    /* スマートフォン専用：極限まで最適化された「上下固定分割UI」 */
     body {
-        overflow-y: auto !important; /* 全体スクロールを許可 */
-        height: auto !important;
+        overflow: hidden !important; /* 縦スクロールを完全に禁止してアプリ感を出す */
+        height: 100vh !important;
     }
     
     .app-container {
-        height: auto !important;
-        overflow: visible !important;
+        height: 100vh !important;
+        overflow: hidden !important;
     }
     
+    /* ヘッダーを極限までコンパクト化（高さ45px） */
     .app-header {
-        height: auto !important;
-        flex-direction: column !important;
-        padding: 16px !important;
-        gap: 12px !important;
-        align-items: stretch !important;
+        height: 45px !important;
+        padding: 0 10px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 0 !important;
     }
     
-    .header-logo {
-        justify-content: center !important;
+    .header-logo h1 {
+        font-size: 15px !important;
+    }
+    .header-logo h1 span {
+        display: none; /* ロゴのサブタイトルを消す */
     }
     
+    /* スマホでは動画ロード欄を折りたたむ（設定モーダルでのみ操作可能にする、または非表示） */
     .header-video-input {
-        margin: 0 !important;
-        max-width: none !important;
-        width: 100% !important;
-        display: flex !important;
-        flex-direction: column !important;
-        gap: 8px !important;
-    }
-    
-    #video-history-select {
-        max-width: none !important;
-        width: 100% !important;
-    }
-    
-    .header-tabs {
-        justify-content: center !important;
-        width: 100% !important;
-    }
-    
-    .header-tabs .tab-btn {
-        flex: 1 !important;
-        justify-content: center !important;
+        display: none !important; /* 通常画面のヘッダー動画ロードは非表示 */
     }
     
     .header-actions {
-        justify-content: center !important;
-        width: 100% !important;
+        gap: 6px !important;
+        width: auto !important;
+        justify-content: flex-end !important;
+    }
+    
+    .user-badge {
+        display: none; /* スマホではバッジを非表示にしてスペース確保 */
+    }
+    
+    .header-tabs {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+    }
+    .header-tabs .tab-btn {
+        padding: 6px 10px !important;
+        font-size: 12px !important;
+        gap: 4px !important;
     }
     
     .app-main {
-        overflow: visible !important;
+        height: calc(100vh - 45px) !important;
+        overflow: hidden !important;
     }
     
+    /* 映像分析モード・作戦盤モードのグリッドを上下の縦並びフレックスに */
     .analysis-grid, .tactics-grid {
-        grid-template-columns: 1fr !important; /* 1カラムにする */
-        height: auto !important;
-        overflow: visible !important;
-        padding: 12px !important;
-        gap: 20px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        width: 100% !important;
+        height: 100% !important;
+        padding: 0 !important;
+        gap: 0 !important;
+        overflow: hidden !important;
     }
     
+    /* 上半分：プレイヤーカラム（動画） */
     .player-column, .court-column {
+        flex: 0 0 auto !important;
+        width: 100% !important;
         height: auto !important;
+        padding: 6px !important;
+        gap: 6px !important;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-primary);
     }
     
     .player-wrapper {
-        aspect-ratio: 16 / 9 !important; /* アスペクト比を固定してレスポンシブに */
+        aspect-ratio: 16 / 9 !important; /* 16:9比率を強制維持 */
         flex: none !important;
+        width: 100% !important;
         height: auto !important;
-        min-height: 280px !important;
+        min-height: 0 !important;
+        border-radius: 8px !important;
     }
     
     .court-wrapper {
-        aspect-ratio: 100 / 54 !important; /* ハンドボールコートの比率に合わせる */
+        aspect-ratio: 100 / 54 !important; /* コート比率を強制維持 */
         flex: none !important;
+        width: 100% !important;
         height: auto !important;
-        min-height: 280px !important;
+        min-height: 0 !important;
+        border-radius: 8px !important;
     }
     
+    /* 動画下のコントロール・タイムラインを極限までコンパクト化 */
+    .player-controls {
+        padding: 4px 8px !important;
+        gap: 8px !important;
+        border-radius: 8px !important;
+    }
+    
+    .player-controls select.select-input,
+    .player-controls .annotation-controls {
+        display: none !important; /* スマホではアノテーションパレットを下に表示しきれないため非表示に（全画面のツールバー機能でアノテーションを行わせる） */
+    }
+    
+    .time-display {
+        font-size: 11px !important;
+        padding: 3px 6px !important;
+        min-width: 60px !important;
+    }
+    
+    .timeline-container {
+        padding: 4px 8px !important;
+        border-radius: 8px !important;
+    }
+    
+    .timeline-track-wrapper {
+        padding-top: 2px !important; /* ticks表示領域を上部に詰める */
+    }
+    .timeline-ticks {
+        display: none !important; /* スマホでは目盛りを非表示にしてスッキリさせる */
+    }
+    
+    /* 下半分：サイドバーカラム（タグ履歴・チャット、または作戦盤コントロール） */
     .sidebar-column {
-        height: 500px !important; /* サイドバーの高さは適度に確保 */
-        min-height: 400px !important;
+        flex: 1 1 0% !important; /* 残りの高さをすべて占有 */
+        width: 100% !important;
+        height: 100% !important;
+        min-height: 0 !important;
+        border: none !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+        overflow: hidden !important;
     }
     
+    .sidebar-tabs {
+        height: 38px !important;
+    }
+    .sidebar-tab-btn {
+        padding: 6px 4px !important;
+        font-size: 11px !important;
+        gap: 4px !important;
+    }
+    
+    /* 各コンテンツ領域は中身だけをスクロールさせる */
+    .sidebar-tab-content {
+        height: calc(100% - 38px) !important;
+        padding: 8px !important;
+        overflow-y: auto !important;
+    }
+    
+    /* 作戦盤のサイドバー（プールなど）もスマホ向けに最適化 */
     .tactics-sidebar {
-        height: auto !important;
-        overflow-y: visible !important;
+        flex: 1 1 0% !important;
+        width: 100% !important;
+        height: 100% !important;
+        border: none !important;
+        border-radius: 0 !important;
+        padding: 8px !important;
+        gap: 8px !important;
+    }
+    .piece-pool {
+        margin-bottom: 4px !important;
+        padding: 4px !important;
+    }
+    .piece-generator-section h4 {
+        margin-top: 4px !important;
+        margin-bottom: 4px !important;
     }
 }
 

@@ -312,6 +312,22 @@
                     <button class="modal-close-btn" id="close-settings-btn">&times;</button>
                 </div>
                 <div class="modal-body">
+                    <!-- スマホ向け動画ロード欄 (PC版ヘッダーのロード欄をスマホでも操作しやすくするために追加) -->
+                    <div class="settings-section mobile-only-video-loader" style="margin-bottom: 24px; border-bottom: 1px solid var(--border-color); padding-bottom: 16px;">
+                        <h3>分析動画の読み込み</h3>
+                        <div class="form-group">
+                            <label for="settings-youtube-url">YouTube動画URL または 動画ID</label>
+                            <input type="text" id="settings-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
+                        </div>
+                        <div class="form-group">
+                            <label for="settings-video-history-select">過去の分析動画から選択</label>
+                            <select id="settings-video-history-select" class="select-input" style="width: 100%;" title="過去に読み込んだ動画">
+                                <option value="">過去の分析動画...</option>
+                            </select>
+                        </div>
+                        <button id="settings-load-video-btn" class="btn btn-primary" style="width: 100%; border-radius: 6px; height: 38px;">動画をロードする</button>
+                    </div>
+
                     <div class="settings-section">
                         <h3>プロフィール</h3>
                         <div class="form-group">
