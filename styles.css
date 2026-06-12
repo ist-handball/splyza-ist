@@ -1814,7 +1814,7 @@ body.light-theme .chat-message-bubble.mine .chat-msg-content {
 ------------------------------------------------------------- */
 .video-overlay-container {
     position: absolute;
-    top: 75px; /* YouTubeタイトル等と重ならないように少し下げる */
+    top: 60px; /* YouTubeタイトル等と重ならないように位置を微調整 */
     right: 20px;
     z-index: 5;
     pointer-events: none; /* クリックを透過させて、背後の操作を邪魔しない */
@@ -1864,11 +1864,12 @@ body.light-theme .overlay-badge {
     /* body.light-theme用の設定は上に統合 */
 }
 
-.overlay-comment {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 250px;
+.overlay-comment, .overlay-comment-text {
+    white-space: pre-wrap; /* 改行を有効にする */
+    word-break: break-all; /* 単語の途中でも改行する */
+    max-width: 330px;      /* 通常画面（文字サイズ11px）の時は330pxで折り返し（全画面と同じ文字数比率） */
+    display: inline-block;
+    vertical-align: middle;
 }
 
 @keyframes overlayFadeIn {
@@ -2190,6 +2191,9 @@ body.light-theme .video-fullscreen-btn-overlay:hover {
 }
 
 .player-wrapper:fullscreen .overlay-comment,
-.player-wrapper:-webkit-full-screen .overlay-comment {
+.player-wrapper:-webkit-full-screen .overlay-comment,
+.player-wrapper:fullscreen .overlay-comment-text,
+.player-wrapper:-webkit-full-screen .overlay-comment-text {
     font-size: 15px;
+    max-width: 450px; /* 全画面表示（文字サイズ15px）の時は450pxで折り返す */
 }
