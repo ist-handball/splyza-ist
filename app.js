@@ -646,6 +646,7 @@ function updateUIForFirebaseStatus() {
 // 4. データ同期 (Firestore & LocalStorage フォールバック)
 // ----------------------------------------------------------------------------
 // データ保存
+// データ保存
 async function saveData(collectionName, docId, data) {
     const videoCollection = `video_${state.videoId}_${collectionName}`;
     const payload = {
@@ -653,9 +654,32 @@ async function saveData(collectionName, docId, data) {
         updatedAt: new Date().toISOString()
     };
 
+    const isAggregated = (collectionName === "tags" || collectionName === "comments");
+
     if (state.isFirebaseEnabled && state.db) {
         try {
-            await state.db.collection(videoCollection).doc(docId).set(payload);
+            if (isAggregated) {
+                // コメントとタグはトランザクションを使って1ドキュメント内に集約保存
+                const docRef = state.db.collection(collectionName).doc(state.videoId);
+                await state.db.runTransaction(async (transaction) => {
+                    const sfDoc = await transaction.get(docRef);
+                    let list = [];
+                    if (sfDoc.exists) {
+                        list = sfDoc.data().list || [];
+                    }
+                    const idx = list.findIndex(item => item.id === docId);
+                    if (idx > -1) {
+                        list[idx] = { ...payload, id: docId };
+                    } else {
+                        list.push({ ...payload, id: docId });
+                    }
+                    transaction.set(docRef, { list, updatedAt: new Date().toISOString() });
+                });
+            } else {
+                // 描き込みと作戦盤はこれまで通り1件1ドキュメントで保存
+                await state.db.collection(videoCollection).doc(docId).set(payload);
+            }
+            
             if (collectionName === "tags") {
                 showNotification(`タグ「${data.name}」を保存しました`, "success", 2000);
             }
@@ -675,10 +699,25 @@ async function saveData(collectionName, docId, data) {
 // データ削除
 async function deleteData(collectionName, docId) {
     const videoCollection = `video_${state.videoId}_${collectionName}`;
+    const isAggregated = (collectionName === "tags" || collectionName === "comments");
     
     if (state.isFirebaseEnabled && state.db) {
         try {
-            await state.db.collection(videoCollection).doc(docId).delete();
+            if (isAggregated) {
+                // コメントとタグはトランザクションを使って1ドキュメント内から削除
+                const docRef = state.db.collection(collectionName).doc(state.videoId);
+                await state.db.runTransaction(async (transaction) => {
+                    const sfDoc = await transaction.get(docRef);
+                    if (sfDoc.exists) {
+                        let list = sfDoc.data().list || [];
+                        list = list.filter(item => item.id !== docId);
+                        transaction.set(docRef, { list, updatedAt: new Date().toISOString() });
+                    }
+                });
+            } else {
+                // 描き込みと作戦盤はこれまで通り1ドキュメントを直接削除
+                await state.db.collection(videoCollection).doc(docId).delete();
+            }
             showNotification("データを削除しました。", "info", 2000);
         } catch (e) {
             console.error("Firebase削除エラー。ローカルから削除します", e);
@@ -708,6 +747,44 @@ function deleteDataLocally(collection, docId) {
     triggerLocalSync(collection);
 }
 
+// 古い（1件1ドキュメント）形式から集約（配列）形式へのマイグレーション関数
+async function migrateOldCollection(col) {
+    if (!state.isFirebaseEnabled || !state.db) return;
+    const oldCollection = `video_${state.videoId}_${col}`;
+    const newDocRef = state.db.collection(col).doc(state.videoId);
+    
+    try {
+        const snapshot = await state.db.collection(oldCollection).get();
+        if (!snapshot.empty) {
+            const list = [];
+            snapshot.forEach(doc => {
+                list.push({ ...doc.data(), id: doc.id });
+            });
+            // 新しい形式で保存
+            await newDocRef.set({
+                list: list,
+                updatedAt: new Date().toISOString(),
+                migrated: true
+            });
+            console.log(`Migrated ${snapshot.size} items from ${oldCollection} to new aggregated format.`);
+            // 古いデータを削除
+            const batch = state.db.batch();
+            snapshot.forEach(doc => {
+                batch.delete(state.db.collection(oldCollection).doc(doc.id));
+            });
+            await batch.commit();
+        } else {
+            // 空のドキュメントを作成しておく
+            await newDocRef.set({
+                list: [],
+                updatedAt: new Date().toISOString()
+            });
+        }
+    } catch (e) {
+        console.error(`Migration error for ${col}:`, e);
+    }
+}
+
 // リアルタイム購読の開始
 function startDataSubscriptions() {
     // 既存のリスナーを解除
@@ -718,18 +795,38 @@ function startDataSubscriptions() {
     
     if (state.isFirebaseEnabled && state.db) {
         collections.forEach(col => {
-            const videoCollection = `video_${state.videoId}_${col}`;
-            const unsub = state.db.collection(videoCollection).onSnapshot(snapshot => {
-                const items = [];
-                snapshot.forEach(doc => {
-                    items.push({ id: doc.id, ...doc.data() });
+            const isAggregated = (col === "tags" || col === "comments");
+            
+            if (isAggregated) {
+                // コメントとタグは動画IDごとの単一ドキュメントを監視
+                const unsub = state.db.collection(col).doc(state.videoId).onSnapshot(async doc => {
+                    if (!doc.exists) {
+                        // マイグレーション処理：古い形式のコレクションが存在するかチェックして移行
+                        await migrateOldCollection(col);
+                        return;
+                    }
+                    const items = doc.data().list || [];
+                    handleIncomingData(col, items);
+                }, err => {
+                    console.error(`Subscription error for ${col}, falling back to local`, err);
+                    setupLocalSubscription(col);
                 });
-                handleIncomingData(col, items);
-            }, err => {
-                console.error(`Subscription error for ${col}, falling back to local`, err);
-                setupLocalSubscription(col);
-            });
-            state.unsubscribeList.push(unsub);
+                state.unsubscribeList.push(unsub);
+            } else {
+                // 描き込みと作戦盤はこれまで通りコレクション全体を監視
+                const videoCollection = `video_${state.videoId}_${col}`;
+                const unsub = state.db.collection(videoCollection).onSnapshot(snapshot => {
+                    const items = [];
+                    snapshot.forEach(doc => {
+                        items.push({ id: doc.id, ...doc.data() });
+                    });
+                    handleIncomingData(col, items);
+                }, err => {
+                    console.error(`Subscription error for ${col}, falling back to local`, err);
+                    setupLocalSubscription(col);
+                });
+                state.unsubscribeList.push(unsub);
+            }
         });
     } else {
         // ローカルでの監視セットアップ
