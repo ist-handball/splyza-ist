@@ -2550,6 +2550,43 @@ function setupEventListeners() {
         });
     }
 
+    // モバイル書き込みツールバーの元に戻す・全消去ボタン
+    document.querySelectorAll(".mobile-undo-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            if (dom.undoBtn) dom.undoBtn.click();
+        });
+    });
+    document.querySelectorAll(".mobile-clear-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            if (dom.clearBtn) dom.clearBtn.click();
+        });
+    });
+
+    // モバイル書き込みツールバーのブラシサイズスライダー同期
+    document.querySelectorAll(".mobile-brush-size").forEach(slider => {
+        slider.addEventListener("input", (e) => {
+            const val = parseInt(e.target.value);
+            if (state.activeTool === "eraser") {
+                state.eraserSize = val;
+            } else {
+                state.brushSize = val;
+            }
+            // PC版スライダーも同期
+            if (dom.brushSize) {
+                dom.brushSize.value = val;
+            }
+            // モバイル表示テキスト更新
+            const label = slider.parentElement.querySelector(".mobile-brush-size-val");
+            if (label) {
+                label.textContent = (state.activeTool === "eraser" ? val * 3 : val) + "px";
+            }
+            // PC版表示テキスト更新
+            if (dom.brushSizeVal) {
+                dom.brushSizeVal.textContent = (state.activeTool === "eraser" ? val * 3 : val) + "px";
+            }
+        });
+    });
+
     // カスタムタグ追加（即時打刻ではなく、クイックタグ選択肢に追加して自動選択状態にする）
     if (dom.addTagBtn) {
         dom.addTagBtn.addEventListener("click", () => {

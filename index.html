@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.32.0">
+    <link rel="stylesheet" href="styles.css?v=2.35.0">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -48,7 +48,7 @@
             <div class="header-actions">
                 <span id="user-display-name" class="user-badge"><i class="fa-solid fa-user"></i> ゲストユーザー</span>
                 <button id="theme-toggle-btn" class="btn btn-icon" title="ダークモードに切り替え"><i class="fa-solid fa-moon"></i></button>
-                <button id="open-settings-btn" class="btn btn-icon" title="設定"><i class="fa-solid fa-gear"></i></button>
+                <button id="open-settings-btn" class="btn btn-icon" title="設定/動画読込"><i class="fa-solid fa-gear"></i><span class="settings-btn-text">設定/動画読込</span></button>
             </div>
         </header>
 
@@ -59,6 +59,7 @@
                 <div class="analysis-grid">
                     <!-- 左：プレイヤー＆アノテーション -->
                     <div class="player-column">
+
                         <div class="player-wrapper" id="player-wrapper">
                             <!-- YouTube埋め込み領域 -->
                             <div id="yt-player-container">
@@ -168,16 +169,34 @@
 
                     <!-- 右：分析パネル（タグ＆チャット） -->
                     <div class="sidebar-column">
-                        <!-- スマホ専用動画ロードパネル -->
-                        <div class="mobile-video-input-panel">
-                            <div class="input-group" style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px;">
-                                <i class="fa-brands fa-youtube input-icon" style="color: #ff0000; font-size: 16px;"></i>
-                                <input type="text" id="mobile-youtube-url" placeholder="YouTube動画URL または IDを入力..." style="flex: 1; height: 32px; font-size: 12px; padding: 4px 8px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-primary);">
-                                <button id="mobile-load-video-btn" class="btn btn-primary" style="height: 32px; font-size: 12px; padding: 0 12px; border-radius: 6px;">読込</button>
+                        <!-- スマホ専用書き込みツールバー -->
+                        <div class="mobile-annotation-panel">
+                            <div class="mobile-annotation-bar">
+                                <span class="mobile-anno-label">描き込みツール:</span>
+                                <div class="mobile-anno-sep"></div>
+                                <button class="tool-btn" data-tool="pen" title="ペン"><i class="fa-solid fa-pen"></i></button>
+                                <button class="tool-btn" data-tool="eraser" title="消しゴム"><i class="fa-solid fa-eraser"></i></button>
+                                <button class="tool-btn" data-tool="arrow" title="矢印"><i class="fa-solid fa-arrow-right"></i></button>
+                                <button class="tool-btn" data-tool="rect" title="四角"><i class="fa-regular fa-square"></i></button>
+                                <button class="tool-btn" data-tool="circle" title="円"><i class="fa-regular fa-circle"></i></button>
+                                <button class="tool-btn" data-tool="text" title="テキスト"><i class="fa-solid fa-font"></i></button>
+                                <div class="mobile-anno-sep"></div>
+                                <div class="mobile-anno-colors">
+                                    <button class="color-dot active" data-color="#ff4757" style="background-color: #ff4757;"></button>
+                                    <button class="color-dot" data-color="#1e90ff" style="background-color: #1e90ff;"></button>
+                                    <button class="color-dot" data-color="#2ed573" style="background-color: #2ed573;"></button>
+                                    <button class="color-dot" data-color="#ffa502" style="background-color: #ffa502;"></button>
+                                    <button class="color-dot" data-color="#ffffff" style="background-color: #ffffff;"></button>
+                                </div>
+                                <div class="mobile-anno-sep"></div>
+                                <div class="mobile-anno-size">
+                                    <input type="range" class="mobile-brush-size" min="2" max="15" value="4" title="線の太さ">
+                                    <span class="mobile-brush-size-val">4px</span>
+                                </div>
+                                <div class="mobile-anno-sep"></div>
+                                <button class="mobile-anno-action-btn mobile-undo-btn" title="元に戻す"><i class="fa-solid fa-rotate-left"></i></button>
+                                <button class="mobile-anno-action-btn mobile-clear-btn" title="全消去"><i class="fa-solid fa-trash-can"></i></button>
                             </div>
-                            <select id="mobile-video-history-select" class="select-input" style="width: 100%; height: 32px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-surface); color: var(--text-primary); margin-bottom: 8px;" title="過去に読み込んだ動画">
-                                <option value="">過去の分析動画から選択...</option>
-                            </select>
                         </div>
 
                         <div class="sidebar-tabs">
@@ -379,7 +398,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.32.0"></script>
+    <script src="app.js?v=2.35.0"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');

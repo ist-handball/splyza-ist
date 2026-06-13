@@ -209,6 +209,10 @@ body {
     background: rgba(255, 255, 255, 0.1);
 }
 
+.settings-btn-text {
+    display: none;
+}
+
 .btn-circle {
     border-radius: 50%;
     width: 42px;
@@ -1603,6 +1607,160 @@ body {
     display: none;
 }
 
+/* スマホ専用書き込みツールバー（デフォルトは非表示、スマホ表示時のみ有効） */
+.mobile-annotation-panel {
+    display: none !important;
+}
+
+/* 横長1行ツールバー本体 */
+.mobile-annotation-bar {
+    display: flex;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: center;
+    gap: 0;
+    padding: 0;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    box-shadow: var(--card-shadow);
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    white-space: nowrap;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
+}
+
+.mobile-annotation-bar::-webkit-scrollbar {
+    display: none;
+}
+
+/* ラベル */
+.mobile-anno-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    padding: 0 10px;
+    flex-shrink: 0;
+}
+
+/* 縦線セパレーター */
+.mobile-anno-sep {
+    width: 1px;
+    height: 22px;
+    background: var(--border-color);
+    flex-shrink: 0;
+}
+
+/* ツールボタン */
+.mobile-annotation-bar .tool-btn {
+    display: inline-flex !important;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    font-size: 14px;
+    margin: 0 1px;
+}
+
+/* カラーパレット */
+.mobile-anno-colors {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+.mobile-anno-colors .color-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+    transition: var(--transition-smooth);
+}
+
+.mobile-anno-colors .color-dot.active {
+    transform: scale(1.2);
+    border-color: #fff;
+}
+
+body.light-theme .mobile-anno-colors .color-dot.active {
+    border-color: #333;
+}
+
+/* サイズスライダー */
+.mobile-anno-size {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 8px;
+    flex-shrink: 0;
+}
+
+.mobile-brush-size {
+    width: 60px;
+    accent-color: var(--accent-blue);
+    cursor: pointer;
+    height: 4px;
+}
+
+.mobile-brush-size-val {
+    font-size: 11px;
+    color: var(--text-secondary);
+    min-width: 24px;
+    text-align: center;
+    font-weight: 500;
+}
+
+/* 元に戻す・全消去アクションボタン */
+.mobile-anno-action-btn {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    transition: var(--transition-smooth);
+    margin: 0 2px;
+}
+
+.mobile-anno-action-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+}
+
+.mobile-anno-action-btn:last-child {
+    color: var(--danger-red);
+    margin-right: 4px;
+}
+
+.mobile-anno-action-btn:last-child:hover {
+    background: rgba(255, 71, 87, 0.12);
+}
+
+body.light-theme .mobile-anno-action-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+body.light-theme .mobile-anno-action-btn:last-child:hover {
+    background: rgba(255, 71, 87, 0.08);
+}
+
 @media (max-width: 768px) and (orientation: portrait) {
     /* スマートフォン縦画面専用：上半分（動画）完全固定 ＆ 下半分（その他の部分）全体スクロールUI */
     body {
@@ -1625,8 +1783,11 @@ body {
         gap: 0 !important;
     }
     
+    .header-logo i {
+        font-size: 14px !important;
+    }
     .header-logo h1 {
-        font-size: 15px !important;
+        font-size: 13px !important;
     }
     .header-logo h1 span {
         display: none; /* ロゴのサブタイトルを消す */
@@ -1637,9 +1798,38 @@ body {
     }
     
     .header-actions {
-        gap: 6px !important;
+        gap: 4px !important;
         width: auto !important;
         justify-content: flex-end !important;
+    }
+    
+    #open-settings-btn {
+        width: auto !important;
+        height: 28px !important;
+        padding: 0 6px !important;
+        border-radius: 14px !important;
+        background: var(--accent-blue) !important;
+        color: #ffffff !important;
+        font-weight: 500 !important;
+        border-color: transparent !important;
+        box-shadow: 0 2px 6px rgba(0, 85, 255, 0.2) !important;
+    }
+    
+    body.light-theme #open-settings-btn {
+        background: var(--accent-blue) !important;
+        color: #ffffff !important;
+    }
+    
+    .settings-btn-text {
+        display: inline !important;
+        font-size: 10px !important;
+        margin-left: 2px !important;
+    }
+    
+    #theme-toggle-btn {
+        width: 28px !important;
+        height: 28px !important;
+        font-size: 12px !important;
     }
     
     .user-badge {
@@ -1652,9 +1842,12 @@ body {
         padding: 0 !important;
     }
     .header-tabs .tab-btn {
-        padding: 6px 10px !important;
-        font-size: 12px !important;
-        gap: 4px !important;
+        padding: 4px 6px !important;
+        font-size: 11px !important;
+        gap: 2px !important;
+    }
+    .header-tabs .tab-btn i {
+        display: none !important;
     }
     
     .app-main {
@@ -1776,15 +1969,22 @@ body {
         display: none !important; /* 目盛り非表示 */
     }
     
-    /* スマホ専用動画ロードパネルの有効化 */
+    /* スマホ専用動画ロードパネルの有効化（プレイヤーカラム上部に移動済み） */
     .mobile-video-input-panel {
         display: block !important;
-        padding: 10px !important;
+        padding: 8px !important;
         background: var(--bg-secondary);
         border-radius: 8px;
         border: 1px solid var(--border-color);
-        margin: 8px !important;
+        margin: 0 !important;
         box-shadow: var(--card-shadow);
+    }
+
+    /* スマホ専用書き込みツールバーの有効化（サイドバー上部） */
+    .mobile-annotation-panel {
+        display: block !important;
+        padding: 6px 8px !important;
+        margin: 0 !important;
     }
     
     /* 下半分：サイドバーカラム（その他の部分全体をスクロール） */
@@ -1923,7 +2123,7 @@ body {
 /* -------------------------------------------------------------
    スマホ横画面専用：固定解除 ＆ スクロール可能レイアウト
    ------------------------------------------------------------- */
-@media (max-width: 960px) and (orientation: landscape) {
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 600px) {
     /* 横画面時はスクロール可能にする */
     body {
         overflow: auto !important;
@@ -1954,12 +2154,42 @@ body {
         display: none !important;
     }
     
+    .header-logo i {
+        font-size: 13px !important;
+    }
+    .header-logo h1 {
+        font-size: 13px !important;
+    }
+
     .user-badge {
         display: none;
     }
     
     .header-actions {
-        gap: 6px !important;
+        gap: 4px !important;
+    }
+    
+    #open-settings-btn {
+        width: auto !important;
+        height: 26px !important;
+        padding: 0 6px !important;
+        border-radius: 13px !important;
+        background: var(--accent-blue) !important;
+        color: #ffffff !important;
+        font-weight: 500 !important;
+        border-color: transparent !important;
+        box-shadow: 0 2px 6px rgba(0, 85, 255, 0.2) !important;
+    }
+    
+    body.light-theme #open-settings-btn {
+        background: var(--accent-blue) !important;
+        color: #ffffff !important;
+    }
+    
+    .settings-btn-text {
+        display: inline !important;
+        font-size: 10px !important;
+        margin-left: 2px !important;
     }
 
     .header-tabs {
@@ -1968,9 +2198,12 @@ body {
         padding: 0 !important;
     }
     .header-tabs .tab-btn {
-        padding: 5px 8px !important;
+        padding: 4px 6px !important;
         font-size: 11px !important;
-        gap: 4px !important;
+        gap: 2px !important;
+    }
+    .header-tabs .tab-btn i {
+        display: none !important;
     }
     
     .app-main {
@@ -2078,15 +2311,22 @@ body {
         display: none !important;
     }
     
-    /* スマホ専用動画ロードパネルの有効化 */
+    /* スマホ専用動画ロードパネルの有効化（プレイヤーカラム上部） */
     .mobile-video-input-panel {
         display: block !important;
-        padding: 8px !important;
+        padding: 6px !important;
         background: var(--bg-secondary);
         border-radius: 8px;
         border: 1px solid var(--border-color);
-        margin: 6px !important;
+        margin: 0 !important;
         box-shadow: var(--card-shadow);
+    }
+
+    /* スマホ専用書き込みツールバーの有効化（サイドバー上部） */
+    .mobile-annotation-panel {
+        display: block !important;
+        padding: 4px 6px !important;
+        margin: 0 !important;
     }
     
     /* サイドバー：通常フロー、スクロール可能 */
