@@ -607,7 +607,18 @@ function initFirebase(config) {
         }
         
         firebase.initializeApp(config);
-        state.db = firebase.firestore();
+        const db = firebase.firestore();
+        
+        // オフライン永続キャッシュを有効化（重複読み取りの防止と課金削減）
+        db.enablePersistence({ synchronizeTabs: true })
+            .then(() => {
+                console.log("Firestore offline persistence enabled.");
+            })
+            .catch((err) => {
+                console.warn("Firestore persistence error:", err.code, err.message);
+            });
+            
+        state.db = db;
         state.isFirebaseEnabled = true;
         console.log("Firebase initialized successfully.");
     } catch (e) {
