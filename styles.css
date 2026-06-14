@@ -3143,9 +3143,25 @@ body.light-theme .settings-history-item:hover {
     border: 1px solid var(--border-color);
     border-radius: 8px;
     box-shadow: var(--card-shadow);
-    max-height: 200px;
+    max-height: 170px; /* 項目が半分見切れる高さに微調整してスクロール可能であることを示す */
     overflow-y: auto;
     z-index: 101;
+}
+
+/* スクリプト履歴リスト専用の分かりやすいスクロールバー表示 */
+.custom-select-options::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-select-options::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+    border-radius: 0 8px 8px 0;
+}
+.custom-select-options::-webkit-scrollbar-thumb {
+    background: rgba(0, 85, 255, 0.45); /* 目立つ青色のスクロールバーにする */
+    border-radius: 3px;
+}
+.custom-select-options::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 85, 255, 0.65);
 }
 
 .custom-select-container.active .custom-select-options {
