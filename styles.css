@@ -3004,3 +3004,250 @@ body.light-theme .video-fullscreen-btn-overlay:hover {
     font-size: 15px;
     max-width: 450px; /* 全画面表示（文字サイズ15px）の時は450pxで折り返す */
 }
+
+/* -------------------------------------------------------------
+   SETTINGS MODAL HISTORY LIST STYLING
+   ------------------------------------------------------------- */
+.settings-history-list {
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 12px;
+    transition: var(--transition-smooth);
+}
+
+.settings-history-item:last-child {
+    border-bottom: none;
+}
+
+.settings-history-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.light-theme .settings-history-item:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.history-item-btn {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    cursor: pointer;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 4px 10px 4px 0;
+}
+
+.history-item-btn:hover {
+    color: var(--accent-blue);
+    text-decoration: underline;
+}
+
+.history-delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: var(--transition-smooth);
+    font-size: 12px;
+    flex-shrink: 0;
+}
+
+.history-delete-btn:hover {
+    color: var(--danger-red);
+    background: rgba(255, 71, 87, 0.1);
+}
+
+.btn-danger-hover:hover {
+    color: var(--danger-red) !important;
+    border-color: rgba(255, 71, 87, 0.3) !important;
+    background: rgba(255, 71, 87, 0.1) !important;
+}
+
+/* -------------------------------------------------------------
+   CUSTOM SELECT (HISTORY DROPDOWN) STYLING
+   ------------------------------------------------------------- */
+.custom-select-container {
+    position: relative;
+    width: 100%;
+    z-index: 100;
+}
+
+.custom-select-trigger {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+    user-select: none;
+    height: 38px;
+    transition: var(--transition-smooth);
+}
+
+.custom-select-trigger:hover {
+    border-color: var(--accent-blue);
+}
+
+.custom-select-selected-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    padding-right: 8px;
+    text-align: left;
+}
+
+.custom-select-arrow {
+    font-size: 10px;
+    color: var(--text-secondary);
+    transition: transform 0.25s ease;
+    flex-shrink: 0;
+}
+
+.custom-select-container.active .custom-select-arrow {
+    transform: rotate(180deg);
+}
+
+.custom-select-options {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    width: 100%;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--card-shadow);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 101;
+}
+
+.custom-select-container.active .custom-select-options {
+    display: block;
+}
+
+.custom-select-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    font-size: 11px; /* 12px から 11px に変更して文字を小さく */
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: var(--transition-smooth);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.custom-select-option:last-child {
+    border-bottom: none;
+}
+
+.custom-select-option:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+body.light-theme .custom-select-option:hover {
+    background: rgba(0, 0, 0, 0.03);
+}
+
+.custom-select-option.selected {
+    background: rgba(0, 85, 255, 0.1);
+    color: var(--accent-blue);
+    font-weight: 500;
+}
+
+.option-text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding-right: 8px;
+    text-align: left;
+}
+
+.option-delete-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: var(--transition-smooth);
+    font-size: 11px;
+    flex-shrink: 0;
+}
+
+.option-delete-btn:hover {
+    color: var(--danger-red) !important;
+    background: rgba(255, 71, 87, 0.1);
+}
+
+/* PC版ヘッダー内のカスタムセレクト専用サイズ調整 */
+#video-history-custom-select .custom-select-trigger {
+    height: 34px;
+    padding: 6px 12px;
+    background: var(--bg-primary);
+}
+
+#video-history-custom-select .custom-select-options {
+    background: var(--bg-primary);
+    width: 360px; /* 親の300pxより広くする */
+    right: 0;    /* 右端に揃えて左側へ広げる */
+    left: auto;
+}
+
+/* スマホ表示時のヘッダー内のカスタムセレクトサイズ調整 */
+@media (max-width: 768px) and (orientation: portrait) {
+    #video-history-custom-select {
+        max-width: 140px !important;
+    }
+    #video-history-custom-select .custom-select-trigger {
+        height: 28px !important;
+        padding: 4px 8px !important;
+        border-radius: 6px !important;
+    }
+    #video-history-custom-select .custom-select-selected-text {
+        font-size: 10px !important;
+    }
+}
+
+@media (max-width: 960px) and (orientation: landscape) and (max-height: 600px) {
+    #video-history-custom-select {
+        max-width: 140px !important;
+    }
+    #video-history-custom-select .custom-select-trigger {
+        height: 26px !important;
+        padding: 3px 6px !important;
+        border-radius: 6px !important;
+    }
+    #video-history-custom-select .custom-select-selected-text {
+        font-size: 10px !important;
+    }
+}

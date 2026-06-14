@@ -208,8 +208,10 @@ function syncVideoInputs(url, videoId) {
     if (dom.mobileYoutubeUrl) dom.mobileYoutubeUrl.value = url || "";
     
     if (dom.videoHistorySelect) dom.videoHistorySelect.value = videoId || "";
-    if (dom.settingsVideoHistorySelect) dom.settingsVideoHistorySelect.value = videoId || "";
     if (dom.mobileVideoHistorySelect) dom.mobileVideoHistorySelect.value = videoId || "";
+    
+    // 自作カスタムセレクトの表示同期
+    updateCustomSelectUI(videoId);
 }
 
 // 共通動画ロード処理
@@ -257,9 +259,9 @@ function triggerVideoSelect(videoId) {
 
 // 動画履歴の描画
 function renderVideoHistorySelect() {
+    // 1. 通常のセレクトボックスの更新
     const selectBoxes = [
         dom.videoHistorySelect,
-        dom.settingsVideoHistorySelect,
         dom.mobileVideoHistorySelect
     ].filter(Boolean);
     
@@ -275,6 +277,109 @@ function renderVideoHistorySelect() {
             selectBox.appendChild(opt);
         });
     });
+
+    // 2. 自作のカスタムドロップダウンの更新 (PCヘッダー、設定モーダルの2系統)
+    const customContainers = [
+        { container: dom.videoHistoryCustomSelect, closeOnLoad: false },
+        { container: dom.settingsHistoryCustomSelect, closeOnLoad: true }
+    ];
+
+    customContainers.forEach(target => {
+        const container = target.container;
+        if (!container) return;
+
+        const optionsDiv = container.querySelector(".custom-select-options");
+        if (!optionsDiv) return;
+
+        optionsDiv.innerHTML = "";
+        
+        if (state.videoHistory.length === 0) {
+            optionsDiv.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 12px; font-size:11px;">履歴はありません</div>';
+            return;
+        }
+
+        state.videoHistory.forEach(item => {
+            const optionRow = document.createElement("div");
+            optionRow.className = "custom-select-option";
+            if (item.videoId === state.videoId) {
+                optionRow.classList.add("selected");
+            }
+            optionRow.setAttribute("data-value", item.videoId);
+
+            // テキスト部分
+            const textSpan = document.createElement("span");
+            textSpan.className = "option-text";
+            textSpan.textContent = item.title;
+            textSpan.title = item.title;
+            textSpan.addEventListener("click", (e) => {
+                e.stopPropagation();
+                triggerVideoSelect(item.videoId);
+                container.classList.remove("active");
+                if (target.closeOnLoad && dom.settingsModal) {
+                    dom.settingsModal.classList.remove("active");
+                }
+            });
+
+            // 削除用の「×」ボタン
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "option-delete-btn";
+            deleteBtn.type = "button";
+            deleteBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+            deleteBtn.title = "この履歴を削除";
+            deleteBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                if (confirm(`履歴から「${item.title}」を削除しますか？\n※Firestore内のデータは削除されません。`)) {
+                    removeVideoFromHistory(item.videoId);
+                }
+            });
+
+            optionRow.appendChild(textSpan);
+            optionRow.appendChild(deleteBtn);
+            optionsDiv.appendChild(optionRow);
+        });
+    });
+
+    // 表示されている選択中テキストの同期
+    updateCustomSelectUI(state.videoId);
+}
+
+// 自作カスタムセレクトの表示テキスト同期用
+function updateCustomSelectUI(videoId) {
+    const customContainers = [
+        dom.videoHistoryCustomSelect,
+        dom.settingsHistoryCustomSelect
+    ].filter(Boolean);
+
+    const historyItem = state.videoHistory.find(item => item.videoId === videoId);
+    const selectedText = historyItem ? historyItem.title : "過去の分析動画から選択...";
+
+    customContainers.forEach(container => {
+        const textSpan = container.querySelector(".custom-select-selected-text");
+        if (textSpan) {
+            textSpan.textContent = selectedText;
+            textSpan.title = selectedText;
+        }
+
+        // オプションリスト内の selected クラスの付け替え
+        container.querySelectorAll(".custom-select-option").forEach(opt => {
+            if (opt.getAttribute("data-value") === videoId) {
+                opt.classList.add("selected");
+            } else {
+                opt.classList.remove("selected");
+            }
+        });
+    });
+}
+
+// 過去の動画履歴から削除
+function removeVideoFromHistory(videoId) {
+    if (!videoId) return;
+    
+    state.videoHistory = state.videoHistory.filter(item => item.videoId !== videoId);
+    localStorage.setItem("splyza_video_history", JSON.stringify(state.videoHistory));
+    
+    renderVideoHistorySelect();
+    showNotification("履歴から動画を削除しました。", "info", 2000);
 }
 
 // 過去の動画履歴に新規登録または更新
@@ -501,7 +606,8 @@ function initDOMReferences() {
         // スマホ用設定モーダル動画ロード
         settingsYoutubeUrl: document.getElementById("settings-youtube-url"),
         settingsLoadVideoBtn: document.getElementById("settings-load-video-btn"),
-        settingsVideoHistorySelect: document.getElementById("settings-video-history-select"),
+        videoHistoryCustomSelect: document.getElementById("video-history-custom-select"),
+        settingsHistoryCustomSelect: document.getElementById("settings-history-custom-select"),
         // スマホメイン画面用動画ロード
         mobileYoutubeUrl: document.getElementById("mobile-youtube-url"),
         mobileLoadVideoBtn: document.getElementById("mobile-load-video-btn"),
@@ -2473,6 +2579,23 @@ function setupEventListeners() {
         });
     }
 
+    // 2-1. 過去の分析動画履歴の削除 (PC版)
+    if (dom.deleteVideoHistoryBtn) {
+        dom.deleteVideoHistoryBtn.addEventListener("click", () => {
+            const selectedVal = dom.videoHistorySelect.value;
+            if (!selectedVal) {
+                showNotification("削除する履歴を選択してください。", "warning", 2000);
+                return;
+            }
+            const historyItem = state.videoHistory.find(item => item.videoId === selectedVal);
+            if (historyItem) {
+                if (confirm(`履歴から「${historyItem.title}」を削除しますか？\n※Firestore内のデータは削除されません。`)) {
+                    removeVideoFromHistory(selectedVal);
+                }
+            }
+        });
+    }
+
     // 2-2. 過去の分析動画履歴の切り替え (スマホメイン版)
     if (dom.mobileVideoHistorySelect) {
         dom.mobileVideoHistorySelect.addEventListener("change", (e) => {
@@ -2487,6 +2610,52 @@ function setupEventListeners() {
             if (dom.settingsModal) dom.settingsModal.classList.remove("active");
         });
     }
+
+    // 2-4. 過去の分析動画履歴の削除 (設定モーダル版)
+    if (dom.deleteSettingsHistoryBtn) {
+        dom.deleteSettingsHistoryBtn.addEventListener("click", () => {
+            const selectedVal = dom.settingsVideoHistorySelect.value;
+            if (!selectedVal) {
+                showNotification("削除する履歴を選択してください。", "warning", 2000);
+                return;
+            }
+            const historyItem = state.videoHistory.find(item => item.videoId === selectedVal);
+            if (historyItem) {
+                if (confirm(`履歴から「${historyItem.title}」を削除しますか？\n※Firestore内のデータは削除されません。`)) {
+                    removeVideoFromHistory(selectedVal);
+                }
+            }
+        });
+    }
+
+    // 2-5. 自作カスタムセレクトの開閉制御
+    const customSelects = [
+        dom.videoHistoryCustomSelect,
+        dom.settingsHistoryCustomSelect
+    ].filter(Boolean);
+
+    customSelects.forEach(select => {
+        const trigger = select.querySelector(".custom-select-trigger");
+        if (trigger) {
+            trigger.addEventListener("click", (e) => {
+                e.stopPropagation();
+                // 自分以外のカスタムセレクトをすべて閉じる
+                customSelects.forEach(other => {
+                    if (other !== select) {
+                        other.classList.remove("active");
+                    }
+                });
+                select.classList.toggle("active");
+            });
+        }
+    });
+
+    // 外部クリック時にカスタムセレクトを閉じる
+    document.addEventListener("click", () => {
+        customSelects.forEach(select => {
+            select.classList.remove("active");
+        });
+    });
 
     // キーボードショートカット
     window.addEventListener("keydown", (e) => {

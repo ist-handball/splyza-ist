@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.37.0">
+    <link rel="stylesheet" href="styles.css?v=2.40.4">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -25,15 +25,19 @@
                 <h1>SPLYZA<span>-ist</span></h1>
             </div>
             
-            <div class="header-video-input" style="display: flex; gap: 10px; align-items: center; max-width: 700px;">
-                <div class="input-group" style="flex: 2;">
+            <div class="header-video-input" style="display: flex; gap: 10px; align-items: center; max-width: 800px;">
+                <div class="input-group" style="flex: 1.8;">
                     <i class="fa-brands fa-youtube input-icon"></i>
                     <input type="text" id="youtube-url" placeholder="YouTube動画URL または 動画IDを入力...">
                     <button id="load-video-btn" class="btn btn-primary">動画読込</button>
                 </div>
-                <select id="video-history-select" class="select-input" style="flex: 1; max-width: 220px;" title="過去に読み込んだ動画">
-                    <option value="">過去の分析動画...</option>
-                </select>
+                <div class="custom-select-container" id="video-history-custom-select" style="width: 300px; flex-shrink: 0;">
+                    <div class="custom-select-trigger">
+                        <span class="custom-select-selected-text">過去の分析動画...</span>
+                        <i class="fa-solid fa-chevron-down custom-select-arrow"></i>
+                    </div>
+                    <div class="custom-select-options"></div>
+                </div>
             </div>
 
             <div class="header-tabs">
@@ -351,10 +355,14 @@
                             <input type="text" id="settings-youtube-url" placeholder="https://www.youtube.com/watch?v=...">
                         </div>
                         <div class="form-group">
-                            <label for="settings-video-history-select">過去の分析動画から選択</label>
-                            <select id="settings-video-history-select" class="select-input" style="width: 100%;" title="過去に読み込んだ動画">
-                                <option value="">過去の分析動画...</option>
-                            </select>
+                            <label>過去の分析動画から選択</label>
+                            <div class="custom-select-container" id="settings-history-custom-select" style="width: 100%;">
+                                <div class="custom-select-trigger">
+                                    <span class="custom-select-selected-text">過去の分析動画...</span>
+                                    <i class="fa-solid fa-chevron-down custom-select-arrow"></i>
+                                </div>
+                                <div class="custom-select-options"></div>
+                            </div>
                         </div>
                         <button id="settings-load-video-btn" class="btn btn-primary" style="width: 100%; border-radius: 6px; height: 38px;">動画をロードする</button>
                     </div>
@@ -398,7 +406,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.37.0"></script>
+    <script src="app.js?v=2.40.4"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');
