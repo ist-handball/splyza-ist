@@ -11,7 +11,7 @@
     <!-- FontAwesome for Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Stylesheet -->
-    <link rel="stylesheet" href="styles.css?v=2.40.5">
+    <link rel="stylesheet" href="styles.css?v=2.40.16">
     <!-- Firebase SDK (Compat version for easier HTML script import) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
@@ -220,7 +220,9 @@
                                 <div style="margin-bottom: 8px; display: flex; flex-direction: column; gap: 4px; background: rgba(255,255,255,0.02); padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border-color);">
                                     <div style="display: flex; gap: 8px; align-items: center; width: 100%;">
                                         <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-shirt"></i> 選手指定:</span>
-                                        <input type="text" id="stamp-player-number" list="player-number-suggestions" placeholder="背番号を入力 (例: 2)" class="select-input" style="padding: 4px 8px; font-size: 11px; flex: 1; height: 26px; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); background: var(--bg-surface);">
+                                        <input type="text" id="stamp-team-a-input" class="team-input-toggle active" data-team="A" value="" maxlength="2" placeholder="チーム名を入力" title="チームA (赤) の略称。直接編集可能。" style="outline: none; flex: 1; min-width: 0;">
+                                        <input type="text" id="stamp-team-b-input" class="team-input-toggle" data-team="B" value="" maxlength="2" placeholder="チーム名を入力" title="チームB (青) の略称。直接編集可能。" style="outline: none; flex: 1; min-width: 0;">
+                                        <input type="text" id="stamp-player-number" list="player-number-suggestions" placeholder="背番号" class="select-input" style="padding: 4px 6px; font-size: 11px; flex: 1; min-width: 0; height: 26px; border: 1px solid var(--border-color); border-radius: 6px; color: var(--text-primary); background: var(--bg-surface); text-align: center;">
                                         <datalist id="player-number-suggestions">
                                             <!-- 動的に生成 -->
                                         </datalist>
@@ -242,10 +244,15 @@
 
                             <div class="tag-history-section">
                                 <h3>打刻済みプレー履歴</h3>
-                                <!-- 選手での絞り込みフィルターを追加 -->
-                                <div style="margin-bottom: 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
-                                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600;"><i class="fa-solid fa-filter"></i> 選手で絞り込み:</span>
-                                    <select id="tag-filter-player" class="select-input" style="padding: 4px 8px; font-size: 11px; flex: 1; height: 26px; line-height: 1;">
+                                <!-- 絞り込みフィルターを追加 -->
+                                <div style="margin-bottom: 12px; display: flex; gap: 6px; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; flex-wrap: wrap;">
+                                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 600; white-space: nowrap;"><i class="fa-solid fa-filter"></i> 絞り込み:</span>
+                                    <select id="tag-filter-team" class="select-input" style="padding: 4px 6px; font-size: 10px; flex: 1; min-width: 90px; height: 26px; line-height: 1;">
+                                        <option value="all">すべてのチーム</option>
+                                        <option value="A" id="filter-team-a-opt">A (赤)</option>
+                                        <option value="B" id="filter-team-b-opt">B (青)</option>
+                                    </select>
+                                    <select id="tag-filter-player" class="select-input" style="padding: 4px 6px; font-size: 10px; flex: 1; min-width: 90px; height: 26px; line-height: 1;">
                                         <option value="all">すべての選手</option>
                                         <option value="none">選手指定なし</option>
                                         <!-- JSで動的に追加 -->
@@ -375,6 +382,8 @@
                         </div>
                     </div>
 
+
+
                     <div class="settings-section">
                         <h3>Firebase リアルタイム同期設定</h3>
                         <p class="section-desc">チームで同時編集やコメント共有を行いたい場合は、ご自身のFirebase構成情報を設定してください。未設定の場合は、ローカルブラウザ（LocalStorage）にデータが保存されます。</p>
@@ -406,7 +415,7 @@
     </div>
 
     <!-- Application Script -->
-    <script src="app.js?v=2.40.5"></script>
+    <script src="app.js?v=2.40.16"></script>
     <!-- YouTube Player API (Asynchronous Load) -->
     <script>
         var tag = document.createElement('script');

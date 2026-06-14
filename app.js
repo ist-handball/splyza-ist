@@ -126,6 +126,12 @@ const state = {
     // 動画の履歴管理
     videoHistory: [],
     tagFilterPlayer: "all",
+    tagFilterTeam: "all",
+    teamAName: "A",
+    teamAShort: "",
+    teamBName: "B",
+    teamBShort: "",
+    activeStampTeam: "A",
     selectedQuickTags: [],
     quickTags: ["シュート（成功）", "シュート（枠外）", "シュート（セーブ）", "警告", "退場", "ターンオーバー"],
     lastOverlayIds: ""
@@ -212,6 +218,9 @@ function syncVideoInputs(url, videoId) {
     
     // 自作カスタムセレクトの表示同期
     updateCustomSelectUI(videoId);
+
+    // 動画IDに応じたチーム設定のロード
+    loadTeamSettings(videoId);
 }
 
 // 共通動画ロード処理
@@ -430,24 +439,44 @@ function updatePlayerNumberSuggestions() {
     const badgesContainer = document.getElementById("player-quick-badges");
     if (!datalist) return;
     
-    // 現在のタグデータから登録されている背番号を一意に抽出（半角数字のみであることを前提）
-    const numbers = [...new Set(state.tags.map(t => t.playerNumber).filter(Boolean))];
-    // 数値の昇順にソート
-    numbers.sort((a, b) => parseInt(a) - parseInt(b));
+    // 一意の チーム＋背番号 オブジェクトリストを抽出
+    const playerMap = new Map();
+    state.tags.forEach(t => {
+        if (t.playerNumber) {
+            const team = t.team || "A"; // 互換性
+            const key = `${team}-${t.playerNumber}`;
+            playerMap.set(key, { team: team, number: t.playerNumber });
+        }
+    });
+
+    const players = Array.from(playerMap.values());
+    
+    // ソート（チーム順、次に背番号の数値順）
+    players.sort((a, b) => {
+        const teamA = a.team || "A";
+        const teamB = b.team || "A";
+        if (teamA !== teamB) {
+            return teamA.localeCompare(teamB);
+        }
+        const numA = parseInt(a.number) || 0;
+        const numB = parseInt(b.number) || 0;
+        return numA - numB;
+    });
     
     // 1. datalistサジェストの更新
     datalist.innerHTML = "";
-    numbers.forEach(num => {
+    players.forEach(p => {
+        const teamLabel = p.team === "B" ? state.teamBShort : state.teamAShort;
         const opt = document.createElement("option");
-        opt.value = num;
-        opt.textContent = `#${num}`;
+        opt.value = p.number; // 入力欄に入れるため背番号のみ
+        opt.textContent = `${teamLabel} #${p.number}`;
         datalist.appendChild(opt);
     });
 
-    // 2. クイック選択用バッジリストの更新 (これまで入力された番号すべてが常に一覧で並びタップ選択できる)
+    // 2. クイック選択用バッジリストの更新 (カラーボーダーとチーム略称を表示)
     if (badgesContainer) {
         badgesContainer.innerHTML = "";
-        if (numbers.length > 0) {
+        if (players.length > 0) {
             const label = document.createElement("span");
             label.style.fontSize = "10px";
             label.style.color = "var(--text-secondary)";
@@ -457,11 +486,19 @@ function updatePlayerNumberSuggestions() {
             badgesContainer.appendChild(label);
         }
         
-        numbers.forEach(num => {
+        players.forEach(p => {
             const btn = document.createElement("button");
             btn.className = "player-quick-badge-btn";
+            
+            // チームに応じたカラーボーダークラスを適用
+            if (p.team === "B") {
+                btn.classList.add("team-b-badge");
+            } else {
+                btn.classList.add("team-a-badge");
+            }
+            
             btn.style.cssText = `
-                background: rgba(255, 255, 255, 0.05);
+                background: rgba(255, 255, 255, 0.03);
                 border: 1px solid var(--border-color);
                 color: var(--text-primary);
                 border-radius: 12px;
@@ -471,33 +508,35 @@ function updatePlayerNumberSuggestions() {
                 font-weight: 600;
                 transition: var(--transition-smooth);
             `;
-            btn.textContent = `#${num}`;
+            
+            const teamLabel = p.team === "B" ? state.teamBShort : state.teamAShort;
+            btn.textContent = `${teamLabel} #${p.number}`;
+            
             btn.addEventListener("click", (e) => {
                 e.preventDefault();
-                if (dom.stampPlayerNumber) {
-                    dom.stampPlayerNumber.value = num;
+                // 選択されたチームトグルの復元
+                state.activeStampTeam = p.team;
+                if (p.team === "A") {
+                    if (dom.stampTeamABtn) dom.stampTeamABtn.classList.add("active");
+                    if (dom.stampTeamBBtn) dom.stampTeamBBtn.classList.remove("active");
+                } else {
+                    if (dom.stampTeamBBtn) dom.stampTeamBBtn.classList.add("active");
+                    if (dom.stampTeamABtn) dom.stampTeamABtn.classList.remove("active");
                 }
-            });
-            // ホバー時の輝き効果
-            btn.addEventListener("mouseenter", () => {
-                btn.style.background = "var(--accent-blue)";
-                btn.style.color = "#000";
-                btn.style.borderColor = "var(--accent-blue)";
-            });
-            btn.addEventListener("mouseleave", () => {
-                btn.style.background = "rgba(255, 255, 255, 0.05)";
-                btn.style.color = "var(--text-primary)";
-                btn.style.borderColor = "var(--border-color)";
+                
+                if (dom.stampPlayerNumber) {
+                    dom.stampPlayerNumber.value = p.number;
+                }
             });
             badgesContainer.appendChild(btn);
         });
     }
     
-    updateFilterPlayerSelect(numbers);
+    updateFilterPlayerSelect(players);
 }
 
 // フィルター用のセレクトボックスの選択肢を動的に更新
-function updateFilterPlayerSelect(numbers) {
+function updateFilterPlayerSelect(players) {
     if (!dom.tagFilterPlayer) return;
     
     const currentValue = state.tagFilterPlayer; // 現在の選択を保護
@@ -507,10 +546,11 @@ function updateFilterPlayerSelect(numbers) {
         <option value="none">選手指定なし</option>
     `;
     
-    numbers.forEach(num => {
+    players.forEach(p => {
+        const teamLabel = p.team === "B" ? state.teamBShort : state.teamAShort;
         const opt = document.createElement("option");
-        opt.value = num;
-        opt.textContent = `#${num}`;
+        opt.value = `${p.team}-${p.number}`; // 値は "A-2" などの形式で識別
+        opt.textContent = `${teamLabel} #${p.number}`;
         dom.tagFilterPlayer.appendChild(opt);
     });
     
@@ -611,7 +651,12 @@ function initDOMReferences() {
         // スマホメイン画面用動画ロード
         mobileYoutubeUrl: document.getElementById("mobile-youtube-url"),
         mobileLoadVideoBtn: document.getElementById("mobile-load-video-btn"),
-        mobileVideoHistorySelect: document.getElementById("mobile-video-history-select")
+        mobileVideoHistorySelect: document.getElementById("mobile-video-history-select"),
+
+        // チーム指定関連
+        stampTeamAInput: document.getElementById("stamp-team-a-input"),
+        stampTeamBInput: document.getElementById("stamp-team-b-input"),
+        tagFilterTeam: document.getElementById("tag-filter-team")
     };
     
     state.canvas = dom.canvas;
@@ -684,6 +729,61 @@ function loadSettingsFromStorage() {
         document.body.classList.add("light-theme");
         updateThemeToggleIcon(true);
     }
+
+    // チーム設定のロード (動画ID依存)
+    loadTeamSettings(state.videoId);
+}
+
+function loadTeamSettings(videoId) {
+    const vid = videoId || state.videoId || "default";
+    
+    let aName = localStorage.getItem(`splyza_${vid}_team_a_name`) || "A";
+    let bName = localStorage.getItem(`splyza_${vid}_team_b_name`) || "B";
+    
+    // 互換性維持：頭の「チーム」プレフィックスを自動で取り除く
+    aName = aName.replace(/^チーム/, "");
+    bName = bName.replace(/^チーム/, "");
+    
+    state.teamAName = aName;
+    state.teamAShort = localStorage.getItem(`splyza_${vid}_team_a_short`) || "";
+    state.teamBName = bName;
+    state.teamBShort = localStorage.getItem(`splyza_${vid}_team_b_short`) || "";
+
+    if (dom.stampTeamAInput) dom.stampTeamAInput.value = state.teamAShort;
+    if (dom.stampTeamBInput) dom.stampTeamBInput.value = state.teamBShort;
+
+    updateTeamToggleLabels();
+}
+
+function updateTeamToggleLabels() {
+    if (dom.stampTeamAInput) {
+        dom.stampTeamAInput.title = state.teamAName + " (赤) - 直接入力して略称変更可能";
+    }
+    if (dom.stampTeamBInput) {
+        dom.stampTeamBInput.title = state.teamBName + " (青) - 直接入力して略称変更可能";
+    }
+
+    // フィルターのオプション名も更新
+    const optA = document.getElementById("filter-team-a-opt");
+    const optB = document.getElementById("filter-team-b-opt");
+    if (optA) optA.textContent = `${state.teamAName} (赤)`;
+    if (optB) optB.textContent = `${state.teamBName} (青)`;
+}
+
+function saveTeamSettings(teamKey, value) {
+    const vid = state.videoId || "default";
+    const shortVal = value.trim().substring(0, 2);
+    const nameVal = shortVal || (teamKey === "A" ? "A" : "B");
+    
+    state[`team${teamKey}Name`] = nameVal;
+    state[`team${teamKey}Short`] = shortVal;
+    
+    localStorage.setItem(`splyza_${vid}_team_${teamKey.toLowerCase()}_name`, nameVal);
+    localStorage.setItem(`splyza_${vid}_team_${teamKey.toLowerCase()}_short`, shortVal);
+    
+    updateTeamToggleLabels();
+    updatePlayerNumberSuggestions();
+    renderTagsList();
 }
 
 function updateThemeToggleIcon(isLight) {
@@ -1247,7 +1347,8 @@ function updateVideoOverlay(time) {
             type: "tag",
             badges: t.names || [t.name || ""],
             playerNumber: t.playerNumber ? `#${t.playerNumber}` : "",
-            comment: t.comment || ""
+            comment: t.comment || "",
+            team: t.team || "A"
         });
     });
     
@@ -1285,7 +1386,13 @@ function updateVideoOverlay(time) {
                 }
             });
             // 背番号バッジ (背番号も独立したバッジ状にする)
-            const playerInfo = item.playerNumber ? `<span class="overlay-badge overlay-badge-player" style="color: var(--accent-blue);"><i class="fa-solid fa-user"></i> ${escapeHTML(item.playerNumber)}</span>` : "";
+            let playerInfo = "";
+            if (item.playerNumber) {
+                const teamLabel = item.team === "B" ? state.teamBShort : state.teamAShort;
+                const teamClass = item.team === "B" ? "team-b" : "team-a";
+                
+                playerInfo = `<span class="overlay-badge overlay-badge-player ${teamClass}"><i class="fa-solid fa-user"></i> ${escapeHTML(teamLabel)} ${escapeHTML(item.playerNumber)}</span>`;
+            }
             const commentInfo = item.comment ? `<span class="overlay-comment-text" style="margin-left: 4px;">${escapeHTML(item.comment)}</span>` : "";
             
             contentHtml = `
@@ -1739,12 +1846,25 @@ function renderTagsList() {
         dom.quickTagsContainer.appendChild(btn);
     });
 
-    // 選手による絞り込みの適用
+    // チームおよび選手による絞り込みの適用
     let filteredTags = state.tags;
+    
+    // 1. チームフィルター (チーム名情報がないタグは表示しない)
+    if (state.tagFilterTeam !== "all") {
+        filteredTags = filteredTags.filter(t => t.team === state.tagFilterTeam);
+    }
+    
+    // 2. 選手フィルター
     if (state.tagFilterPlayer === "none") {
-        filteredTags = state.tags.filter(t => !t.playerNumber);
+        filteredTags = filteredTags.filter(t => !t.playerNumber);
     } else if (state.tagFilterPlayer !== "all") {
-        filteredTags = state.tags.filter(t => t.playerNumber === state.tagFilterPlayer);
+        const parts = state.tagFilterPlayer.split("-");
+        const team = parts[0];
+        const num = parts[1];
+        filteredTags = filteredTags.filter(t => {
+            const tagTeam = t.team || "A";
+            return t.playerNumber === num && tagTeam === team;
+        });
     }
 
     // 打刻履歴
@@ -1760,7 +1880,11 @@ function renderTagsList() {
         
         let playerBadgeHtml = "";
         if (tag.playerNumber) {
-            playerBadgeHtml = `<span class="tag-record-player-badge" style="background: rgba(0, 210, 255, 0.15); color: var(--accent-blue); padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 6px;">#${tag.playerNumber}</span>`;
+            const teamLabel = tag.team === "B" ? state.teamBShort : state.teamAShort;
+            const teamClass = tag.team === "B" ? "team-b" : "team-a";
+            playerBadgeHtml = `
+                <span class="tag-record-player-badge ${teamClass}" style="background: ${tag.team === "B" ? "rgba(52, 152, 219, 0.15)" : "rgba(255, 71, 87, 0.15)"}; color: ${tag.team === "B" ? "#3498db" : "#ff4757"}; border: 1px solid ${tag.team === "B" ? "rgba(52, 152, 219, 0.3)" : "rgba(255, 71, 87, 0.3)"}; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-left: 2px; display: inline-block;">${teamLabel} #${tag.playerNumber}</span>
+            `;
         }
 
         // タグ名のバッジ群を生成
@@ -1836,16 +1960,25 @@ function renderTagsList() {
 }
 
 function triggerTagStamp(tagName) {
-    // プレイヤー未準備でもタグ打刻を許可する（時間は現在の playbackTime、未再生時は 0）
-    const playerNum = dom.stampPlayerNumber ? dom.stampPlayerNumber.value : "";
+    const playerNum = dom.stampPlayerNumber ? dom.stampPlayerNumber.value.trim() : "";
     
+    // チームトグル（略称）の入力状態および背番号の入力状態を確認
+    const activeTeamShort = state.activeStampTeam === "B" ? state.teamBShort : state.teamAShort;
+    const hasPlayer = playerNum !== "";
+    const hasTeam = activeTeamShort && activeTeamShort.trim() !== "";
+    
+    // トグルに入力があり、かつ背番号も入力されている場合のみ選手指定を適用
+    const finalPlayerNum = (hasPlayer && hasTeam) ? playerNum : "";
+    const finalTeam = (hasPlayer && hasTeam) ? state.activeStampTeam : "";
+
     const id = "tag_" + Date.now();
     const newTag = {
         id: id,
         time: state.playbackTime,
         name: tagName,
         names: [tagName],
-        playerNumber: playerNum, // 背番号を追加
+        playerNumber: finalPlayerNum, 
+        team: finalTeam,
         comment: "",
         user: state.username
     };
@@ -2896,7 +3029,17 @@ function setupEventListeners() {
                 return;
             }
 
-            const playerNum = dom.stampPlayerNumber ? dom.stampPlayerNumber.value : "";
+            const playerNum = dom.stampPlayerNumber ? dom.stampPlayerNumber.value.trim() : "";
+            
+            // チームトグル（略称）の入力状態および背番号の入力状態を確認
+            const activeTeamShort = state.activeStampTeam === "B" ? state.teamBShort : state.teamAShort;
+            const hasPlayer = playerNum !== "";
+            const hasTeam = activeTeamShort && activeTeamShort.trim() !== "";
+            
+            // トグルに入力があり、かつ背番号も入力されている場合のみ選手指定を適用
+            const finalPlayerNum = (hasPlayer && hasTeam) ? playerNum : "";
+            const finalTeam = (hasPlayer && hasTeam) ? state.activeStampTeam : "";
+
             const time = state.playbackTime;
             const user = state.username;
             const id = "tag_" + Date.now();
@@ -2906,7 +3049,8 @@ function setupEventListeners() {
                 time: time,
                 name: state.selectedQuickTags.join(", "),
                 names: [...state.selectedQuickTags],
-                playerNumber: playerNum,
+                playerNumber: finalPlayerNum,
+                team: finalTeam,
                 comment: "",
                 user: user
             };
@@ -3016,6 +3160,24 @@ function setupEventListeners() {
             localStorage.setItem("splyza_username", username);
             state.username = username;
 
+            // チーム設定の保存
+            const teamAName = (dom.settingsTeamAName ? dom.settingsTeamAName.value.trim() : "") || "チームA";
+            const teamAShort = (dom.settingsTeamAShort ? dom.settingsTeamAShort.value.trim() : "") || "A";
+            const teamBName = (dom.settingsTeamBName ? dom.settingsTeamBName.value.trim() : "") || "チームB";
+            const teamBShort = (dom.settingsTeamBShort ? dom.settingsTeamBShort.value.trim() : "") || "B";
+
+            localStorage.setItem("splyza_team_a_name", teamAName);
+            localStorage.setItem("splyza_team_a_short", teamAShort);
+            localStorage.setItem("splyza_team_b_name", teamBName);
+            localStorage.setItem("splyza_team_b_short", teamBShort);
+
+            state.teamAName = teamAName;
+            state.teamAShort = teamAShort;
+            state.teamBName = teamBName;
+            state.teamBShort = teamBShort;
+
+            updateTeamToggleLabels();
+
             // Firebase設定
             const config = {
                 apiKey: dom.fbApiKey ? dom.fbApiKey.value.trim() : "",
@@ -3052,11 +3214,57 @@ function setupEventListeners() {
     // 設定リセット
     if (dom.clearSettingsBtn) {
         dom.clearSettingsBtn.addEventListener("click", () => {
-            if (confirm("設定を完全に初期化しますか？")) {
-                localStorage.removeItem("splyza_username");
-                localStorage.removeItem("splyza_firebase_config");
+            if (confirm("設定を完全に初期化しますか？\n※動画ごとのチーム設定や履歴もすべてリセットされます。")) {
+                const keysToRemove = [];
+                for (let i = 0; i < localStorage.length; i++) {
+                    const key = localStorage.key(i);
+                    if (key && key.startsWith("splyza_")) {
+                        keysToRemove.push(key);
+                    }
+                }
+                keysToRemove.forEach(k => localStorage.removeItem(k));
                 location.reload();
             }
+        });
+    }
+
+    // 選手指定時のチーム選択トグル＆略称変更イベント
+    if (dom.stampTeamAInput && dom.stampTeamBInput) {
+        const activateTeam = (teamKey) => {
+            state.activeStampTeam = teamKey;
+            if (teamKey === "A") {
+                dom.stampTeamAInput.classList.add("active");
+                dom.stampTeamBInput.classList.remove("active");
+            } else {
+                dom.stampTeamBInput.classList.add("active");
+                dom.stampTeamAInput.classList.remove("active");
+            }
+        };
+
+        dom.stampTeamAInput.addEventListener("click", (e) => {
+            activateTeam("A");
+            e.stopPropagation();
+        });
+        dom.stampTeamAInput.addEventListener("focus", () => activateTeam("A"));
+        dom.stampTeamAInput.addEventListener("input", (e) => {
+            saveTeamSettings("A", e.target.value);
+        });
+
+        dom.stampTeamBInput.addEventListener("click", (e) => {
+            activateTeam("B");
+            e.stopPropagation();
+        });
+        dom.stampTeamBInput.addEventListener("focus", () => activateTeam("B"));
+        dom.stampTeamBInput.addEventListener("input", (e) => {
+            saveTeamSettings("B", e.target.value);
+        });
+    }
+
+    // チームフィルター変更イベント
+    if (dom.tagFilterTeam) {
+        dom.tagFilterTeam.addEventListener("change", (e) => {
+            state.tagFilterTeam = e.target.value;
+            renderTagsList();
         });
     }
 

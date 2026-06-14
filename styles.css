@@ -3267,3 +3267,145 @@ body.light-theme .custom-select-option:hover {
         font-size: 10px !important;
     }
 }
+
+/* -------------------------------------------------------------
+   TEAM TOGGLE & QUICK BADGE STYLING
+   ------------------------------------------------------------- */
+.team-input-toggle {
+    background: rgba(255, 255, 255, 0.04) !important;
+    color: var(--text-muted) !important;
+    border: 1px dashed var(--border-color) !important;
+    border-radius: 6px;
+    cursor: text !important;
+    font-size: 11px;
+    font-weight: 700;
+    height: 26px;
+    text-align: center;
+    transition: var(--transition-smooth);
+    opacity: 0.7;
+    outline: none;
+}
+
+.team-input-toggle[data-team="A"] {
+    border-color: rgba(255, 71, 87, 0.4) !important;
+    background: rgba(255, 71, 87, 0.03) !important;
+    color: rgba(255, 71, 87, 0.75) !important;
+}
+
+.team-input-toggle[data-team="B"] {
+    border-color: rgba(52, 152, 219, 0.4) !important;
+    background: rgba(52, 152, 219, 0.03) !important;
+    color: rgba(52, 152, 219, 0.75) !important;
+}
+
+.team-input-toggle:focus, .team-input-toggle:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+    opacity: 0.95;
+    border-style: solid !important;
+}
+
+.team-input-toggle.active {
+    opacity: 1 !important;
+    border-style: solid !important;
+}
+
+.team-input-toggle.active[data-team="A"] {
+    background: var(--danger-red) !important;
+    color: #fff !important;
+    border-color: var(--danger-red) !important;
+    box-shadow: 0 0 6px rgba(255, 71, 87, 0.4);
+}
+
+.team-input-toggle.active[data-team="B"] {
+    background: var(--accent-blue) !important;
+    color: #fff !important;
+    border-color: var(--accent-blue) !important;
+    box-shadow: 0 0 6px rgba(0, 85, 255, 0.4);
+}
+
+.team-input-toggle::placeholder {
+    font-size: 8px !important;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.35) !important;
+    text-align: center;
+}
+
+.light-theme .team-input-toggle::placeholder {
+    color: rgba(0, 0, 0, 0.35) !important;
+}
+
+.team-input-toggle.active::placeholder {
+    color: rgba(255, 255, 255, 0.75) !important;
+}
+
+
+/* 履歴バッジ用チーム別枠線カラー */
+.player-quick-badge-btn.team-a-badge {
+    border-color: rgba(255, 71, 87, 0.4) !important;
+    background: rgba(255, 71, 87, 0.05) !important;
+}
+
+.player-quick-badge-btn.team-a-badge:hover {
+    background: var(--danger-red) !important;
+    color: #fff !important;
+    border-color: var(--danger-red) !important;
+}
+
+.player-quick-badge-btn.team-b-badge {
+    border-color: rgba(52, 152, 219, 0.4) !important;
+    background: rgba(52, 152, 219, 0.05) !important;
+}
+
+.player-quick-badge-btn.team-b-badge:hover {
+    background: var(--accent-blue) !important;
+    color: #fff !important;
+    border-color: var(--accent-blue) !important;
+}
+
+/* タグ履歴での背番号/チームのインジケーター表示用 */
+.tag-team-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-weight: 700;
+    margin-right: 4px;
+    display: inline-block;
+}
+
+.tag-team-badge.team-a {
+    background: rgba(255, 71, 87, 0.15);
+    color: #ff4757;
+    border: 1px solid rgba(255, 71, 87, 0.3);
+}
+
+.tag-team-badge.team-b {
+    background: rgba(52, 152, 219, 0.15);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+/* オーバーレイの背番号タグのチーム色分け（白背景・不透明・高コントラスト） */
+.overlay-badge.overlay-badge-player.team-a {
+    background: #ffffff !important;
+    color: #ff4757 !important;
+    border: 1px solid #ff4757 !important;
+}
+
+.overlay-badge.overlay-badge-player.team-b {
+    background: #ffffff !important;
+    color: #3498db !important;
+    border: 1px solid #3498db !important;
+}
+
+/* ライトテーマ用のオーバーレイ背番号タグのチーム色分け */
+body.light-theme .overlay-badge.overlay-badge-player.team-a {
+    background: #ffffff !important;
+    color: #e84118 !important;
+    border: 1px solid #e84118 !important;
+}
+
+body.light-theme .overlay-badge.overlay-badge-player.team-b {
+    background: #ffffff !important;
+    color: #0056b3 !important;
+    border: 1px solid #0056b3 !important;
+}
