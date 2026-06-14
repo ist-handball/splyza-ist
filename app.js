@@ -781,6 +781,16 @@ function saveTeamSettings(teamKey, value) {
     localStorage.setItem(`splyza_${vid}_team_${teamKey.toLowerCase()}_name`, nameVal);
     localStorage.setItem(`splyza_${vid}_team_${teamKey.toLowerCase()}_short`, shortVal);
     
+    // データベース経由で全員共有するために settings コレクションに保存
+    const settingsData = {
+        id: "team_settings",
+        teamAName: state.teamAName,
+        teamAShort: state.teamAShort,
+        teamBName: state.teamBName,
+        teamBShort: state.teamBShort
+    };
+    saveData("settings", "team_settings", settingsData);
+    
     updateTeamToggleLabels();
     updatePlayerNumberSuggestions();
     renderTagsList();
@@ -860,7 +870,7 @@ async function saveData(collectionName, docId, data) {
         updatedAt: new Date().toISOString()
     };
 
-    const isAggregated = (collectionName === "tags" || collectionName === "comments");
+    const isAggregated = (collectionName === "tags" || collectionName === "comments" || collectionName === "settings");
 
     if (state.isFirebaseEnabled && state.db) {
         try {
@@ -997,11 +1007,11 @@ function startDataSubscriptions() {
     state.unsubscribeList.forEach(unsub => unsub());
     state.unsubscribeList = [];
 
-    const collections = ["annotations", "tags", "comments", "tactics"];
+    const collections = ["annotations", "tags", "comments", "tactics", "settings"];
     
     if (state.isFirebaseEnabled && state.db) {
         collections.forEach(col => {
-            const isAggregated = (col === "tags" || col === "comments");
+            const isAggregated = (col === "tags" || col === "comments" || col === "settings");
             
             if (isAggregated) {
                 // コメントとタグは動画IDごとの単一ドキュメントを監視
@@ -1106,6 +1116,27 @@ function handleIncomingData(col, items) {
                     renderTacticsBoard();
                 }
             }
+        }
+    } else if (col === "settings") {
+        const settingsDoc = items.find(item => item.id === "team_settings");
+        if (settingsDoc) {
+            // 他のユーザーからの同期があった場合、ローカル状態を更新
+            state.teamAName = settingsDoc.teamAName || "A";
+            state.teamAShort = settingsDoc.teamAShort || "";
+            state.teamBName = settingsDoc.teamBName || "B";
+            state.teamBShort = settingsDoc.teamBShort || "";
+            
+            // ユーザーの入力中の邪魔をしないようにフォーカスチェックの上で値を反映
+            if (dom.stampTeamAInput && document.activeElement !== dom.stampTeamAInput) {
+                dom.stampTeamAInput.value = state.teamAShort;
+            }
+            if (dom.stampTeamBInput && document.activeElement !== dom.stampTeamBInput) {
+                dom.stampTeamBInput.value = state.teamBShort;
+            }
+            
+            updateTeamToggleLabels();
+            updatePlayerNumberSuggestions();
+            renderTagsList();
         }
     }
 }
