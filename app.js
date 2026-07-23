@@ -2887,48 +2887,52 @@ function setupEventListeners() {
                     const ytContainer = document.getElementById("yt-player-container");
                     
                     // すでに選択中のツールを再クリックした場合はトグル解除（閲覧モードに戻る）
-    if (dom.saveSettingsBtn) {
-        dom.saveSettingsBtn.addEventListener("click", async () => {
-            const username = (dom.settingsUsername ? dom.settingsUsername.value.trim() : "") || "ゲストユーザー";
-            localStorage.setItem("splyza_username", username);
-            state.username = username;
+                    if (state.activeTool === clickedTool) {
+                        state.activeTool = "";
+                        
+                        if (state.canvas) {
+                            state.canvas.classList.remove("drawing-active");
+                        }
+                        if (ytContainer) ytContainer.style.pointerEvents = "auto"; // 動画操作を可能に
+                    } else {
+                        // 新規にツールを選択
+                        state.activeTool = clickedTool;
+                        
+                        if (state.canvas) {
+                            state.canvas.classList.add("drawing-active");
+                        }
+                        if (ytContainer) ytContainer.style.pointerEvents = "none"; // 動画操作を透過し、描き込み可能に
+                    }
+                    
+                    // ツール切り替えに伴うスライダー値の復元
+                    if (dom.brushSize) {
+                        if (state.activeTool === "eraser") {
+                            dom.brushSize.value = state.eraserSize;
+                            if (dom.brushSizeVal) {
+                                dom.brushSizeVal.textContent = (state.eraserSize * 3) + "px";
+                            }
+                        } else if (state.activeTool) {
+                            dom.brushSize.value = state.brushSize;
+                            if (dom.brushSizeVal) {
+                                dom.brushSizeVal.textContent = state.brushSize + "px";
+                            }
+                        }
+                    }
+                    
+                    // カーソルの更新とUI同期
+                    updateCanvasToolClass();
+                    syncAnnotationToolbarUI();
+                });
+            }
+        });
+    }
 
-            // チーム設定の保存
-            const teamAName = (dom.settingsTeamAName ? dom.settingsTeamAName.value.trim() : "") || "チームA";
-            const teamAShort = (dom.settingsTeamAShort ? dom.settingsTeamAShort.value.trim() : "") || "A";
-            const teamBName = (dom.settingsTeamBName ? dom.settingsTeamBName.value.trim() : "") || "チームB";
-            const teamBShort = (dom.settingsTeamBShort ? dom.settingsTeamBShort.value.trim() : "") || "B";
-
-            localStorage.setItem("splyza_team_a_name", teamAName);
-            localStorage.setItem("splyza_team_a_short", teamAShort);
-            localStorage.setItem("splyza_team_b_name", teamBName);
-            localStorage.setItem("splyza_team_b_short", teamBShort);
-
-            state.teamAName = teamAName;
-            state.teamAShort = teamAShort;
-            state.teamBName = teamBName;
-            state.teamBShort = teamBShort;
-
-            updateTeamToggleLabels();
-
-            // Firebase設定
-            const config = {
-                apiKey: dom.fbApiKey ? dom.fbApiKey.value.trim() : "",
-                authDomain: dom.fbAuthDomain ? dom.fbAuthDomain.value.trim() : "",
-                projectId: dom.fbProjectId ? dom.fbProjectId.value.trim() : "",
-                appId: dom.fbAppId ? dom.fbAppId.value.trim() : ""
-            };
-
-            if (config.apiKey && config.projectId) {
-                localStorage.setItem("splyza_firebase_config", JSON.stringify(config));
-                state.firebaseConfig = config;
-                await initFirebase(config);
-                if (state.isFirebaseEnabled) {
-                    showNotification("Firebase同期設定を保存し、接続しました！", "success");
-                } else {
-                    showNotification("Firebase設定に誤りがあるか、接続できませんでした。ローカル保存モードで起動します。", "warning");
-                }
-            } else {or");
+    // カラーパレット (映像分析用)
+    if (dom.colorDots) {
+        dom.colorDots.forEach(dot => {
+            if (dot) {
+                dot.addEventListener("click", () => {
+                    state.currentColor = dot.getAttribute("data-color");
                     syncAnnotationToolbarUI();
                 });
             }
